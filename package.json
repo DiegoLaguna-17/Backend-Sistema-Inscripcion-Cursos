@@ -2,9 +2,8 @@
   "name": "backend-sistema-inscripcion-cursos",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "src/app.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node src/app.js",
     "dev": "nodemon src/app.js"
   },
@@ -12,6 +11,9 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@supabase/supabase-js": "^2.0.0",
+    "bcrypt": "^5.1.1",
+    "dotenv": "^16.4.5",
     "express": "^5.2.1"
   },
   "devDependencies": {
