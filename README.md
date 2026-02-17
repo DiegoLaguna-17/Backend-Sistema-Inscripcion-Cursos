@@ -39,3 +39,8 @@ npm start
 ```sh
 http://localhost:3000
 ```
+
+### Librerias necesarias
+```sh
+npm i jsonwebtoken
+```
