@@ -1,18 +1,12 @@
 const { Router } = require("express");
-const {
-    registrarEstudiante,
-    listarEstudiantes,
-    obtenerEstudiantePorCI,
-    actualizarEstudiante,
-    eliminarEstudiante,
-} = require("../controllers/estudiante.controller");
+const controller = require("../controllers/estudiante.controller");
 
 const router = Router();
 
-router.post("/", registrarEstudiante);         // ALTA
-router.get("/", listarEstudiantes);            // LISTAR
-router.get("/:ci", obtenerEstudiantePorCI);    // OBTENER 1
-router.put("/:ci", actualizarEstudiante);      // MODIFICAR
-router.delete("/:ci", eliminarEstudiante);     // BAJA
+router.post("/", controller.registrarEstudiante);       // Registrar estudiante
+router.get("/", controller.listarEstudiantes);          // Mostrar lista de estudiantes
+router.get("/:ci", controller.obtenerEstudiantePorCI);  // Obtener estudiante por CI
+router.put("/:ci", controller.actualizarEstudiante);    // Editar estudiante
+router.delete("/:ci", controller.eliminarEstudiante);   // Eliminar estudiante
 
 module.exports = router;

@@ -1,128 +1,113 @@
 const bcrypt = require("bcrypt");
-const { supabase } = require("../config/supabase");
+const supabase = require("../config/supabase");
 
 const SALT_ROUNDS = 10;
 
-const TABLA_USUARIO = "usuario";
-const TABLA_ROL = "rol";
-
 async function getRolIdByName(nombreRol) {
-    const { data, error } = await supabase
-        .from(TABLA_ROL)
-        .select("id_rol, rol")
-        .ilike("rol", nombreRol)
-        .maybeSingle();
+const { data, error } = await supabase
+    .from("rol")
+    .select("id_rol, rol")
+    .ilike("rol", nombreRol)
+    .maybeSingle();
 
     if (error) throw error;
     if (!data) {
-        const err = new Error(`No existe el rol '${nombreRol}' en la tabla rol`);
-        err.status = 400;
-        throw err;
-    }
+    const err = new Error(`No existe el rol '${nombreRol}' en la tabla rol`);
+    err.status = 400;
+    throw err;
+}
     return data.id_rol;
-    }
+}
 
-    async function findUserByCI(ci) {
-    const { data, error } = await supabase
-        .from(TABLA_USUARIO)
-        .select("*")
-        .eq("ci", String(ci))
-        .maybeSingle();
+async function findUserByCI(ci) {
+const { data, error } = await supabase
+    .from("usuario")
+    .select("*")
+    .eq("ci", String(ci))
+    .maybeSingle();
 
     if (error) throw error;
-    return data; // null si no existe
-    }
+    return data;
+}
 
-    // ✅ ALTA
-    async function createStudent(payload) {
-    const {
-        ci,
-        nombre,
-        correo,
-        telefono,
-        contrasena,
-        fecha_nac,
-        direccion,
-        experienci,
-    } = payload;
+// Registrar estudiante
+async function createStudent(payload) {
+const { ci, nombre, correo, telefono, contrasenia, fecha_nac, direccion } = payload;
 
-    if (!ci || !nombre || !correo || !contrasena) {
-        const err = new Error("Campos obligatorios: ci, nombre, correo, contrasena");
-        err.status = 400;
-        throw err;
-    }
+if (!ci || !nombre || !correo || !contrasenia) {
+    const err = new Error("Campos obligatorios: ci, nombre, correo, contrasenia");
+    err.status = 400;
+    throw err;
+}
 
-    // CI duplicado
-    const existingCI = await findUserByCI(ci);
+  // CI duplicado
+const existingCI = await findUserByCI(ci);
     if (existingCI) {
-        const err = new Error("Ya existe un usuario con ese CI");
-        err.status = 409;
-        throw err;
-    }
+    const err = new Error("Ya existe un usuario con ese CI");
+    err.status = 409;
+    throw err;
+}
 
-    // Correo duplicado
-    const { data: existingEmail, error: errEmail } = await supabase
-        .from(TABLA_USUARIO)
-        .select("correo")
-        .eq("correo", correo)
-        .maybeSingle();
+  // correo duplicado
+const { data: existingEmail, error: errEmail } = await supabase
+    .from("usuario")
+    .select("correo")
+    .eq("correo", correo)
+    .maybeSingle();
 
     if (errEmail) throw errEmail;
     if (existingEmail) {
         const err = new Error("Ya existe un usuario con ese correo");
         err.status = 409;
         throw err;
-    }
+}
 
-    // Rol estudiante
-    const rol_id_rol = await getRolIdByName("ESTUDIANTE");
+  // rol estudiante
+const rol_id_rol = await getRolIdByName("ESTUDIANTE");
 
-    // Proteger datos (hash)
-    const passwordHash = await bcrypt.hash(contrasena, SALT_ROUNDS);
+  // hash contraseña
+    const passwordHash = await bcrypt.hash(contrasenia, SALT_ROUNDS);
 
     const { data, error } = await supabase
-        .from(TABLA_USUARIO)
-        .insert([
-        {
-            ci: String(ci),
-            rol_id_rol,
-            nombre,
-            correo,
-            telefono: telefono ?? null,
-            contraseni: passwordHash, // 👈 tu columna de password
-            fecha_nac: fecha_nac ?? null,
-            direccion: direccion ?? null,
-            experienci: experienci ?? null,
-        },
-        ])
-        .select("ci, rol_id_rol, nombre, correo, telefono, fecha_nac, direccion, experienci")
+        .from("usuario")
+        .insert([{
+        ci: String(ci),
+        rol_id_rol,
+        nombre,
+        correo,
+        telefono: telefono ?? null,
+        contrasenia: passwordHash, // tu campo
+        fecha_nac: fecha_nac ?? null,
+        direccion: direccion ?? null,
+        }])
+        .select("ci, rol_id_rol, nombre, correo, telefono, fecha_nac, direccion")
         .single();
 
     if (error) throw error;
     return data;
-    }
+}
 
-    // ✅ LISTAR
-    async function listStudents() {
+// Listar estudiantes
+async function listStudents() {
     const rol_id_rol = await getRolIdByName("ESTUDIANTE");
 
     const { data, error } = await supabase
-        .from(TABLA_USUARIO)
-        .select("ci, rol_id_rol, nombre, correo, telefono, fecha_nac, direccion, experienci")
+        .from("usuario")
+        .select("ci, rol_id_rol, nombre, correo, telefono, fecha_nac, direccion")
         .eq("rol_id_rol", rol_id_rol)
         .order("nombre", { ascending: true });
 
     if (error) throw error;
     return data;
-    }
+}
 
-    // ✅ OBTENER 1
-    async function getStudentByCI(ci) {
+// Obtener estudiante por CI
+async function getStudentByCI(ci) {
     const rol_id_rol = await getRolIdByName("ESTUDIANTE");
 
     const { data, error } = await supabase
-        .from(TABLA_USUARIO)
-        .select("ci, rol_id_rol, nombre, correo, telefono, fecha_nac, direccion, experienci")
+        .from("usuario")
+        .select("ci, rol_id_rol, nombre, correo, telefono, fecha_nac, direccion")
         .eq("ci", String(ci))
         .eq("rol_id_rol", rol_id_rol)
         .maybeSingle();
@@ -136,20 +121,12 @@ async function getRolIdByName(nombreRol) {
     return data;
     }
 
-    // ✅ MODIFICACIÓN
+    // Editar estudiante
     async function updateStudent(ci, payload) {
     const existing = await findUserByCI(ci);
     if (!existing) {
         const err = new Error("Estudiante no encontrado");
         err.status = 404;
-        throw err;
-    }
-
-    // opcional: asegurar que sea estudiante
-    const rolEstudiante = await getRolIdByName("ESTUDIANTE");
-    if (existing.rol_id_rol !== rolEstudiante) {
-        const err = new Error("El usuario no es estudiante");
-        err.status = 400;
         throw err;
     }
 
@@ -159,10 +136,9 @@ async function getRolIdByName(nombreRol) {
     if (payload.telefono !== undefined) updates.telefono = payload.telefono;
     if (payload.fecha_nac !== undefined) updates.fecha_nac = payload.fecha_nac;
     if (payload.direccion !== undefined) updates.direccion = payload.direccion;
-    if (payload.experienci !== undefined) updates.experienci = payload.experienci;
 
-    if (payload.contrasena) {
-        updates.contraseni = await bcrypt.hash(payload.contrasena, SALT_ROUNDS);
+    if (payload.contrasenia) {
+        updates.contrasenia = await bcrypt.hash(payload.contrasenia, SALT_ROUNDS);
     }
 
     if (Object.keys(updates).length === 0) {
@@ -171,10 +147,10 @@ async function getRolIdByName(nombreRol) {
         throw err;
     }
 
-    // Evitar correo duplicado si lo cambian
+  // Si el correo se está actualizando, verificar que no esté en uso por otro usuario   
     if (updates.correo && updates.correo !== existing.correo) {
         const { data: emailTaken, error: emailErr } = await supabase
-        .from(TABLA_USUARIO)
+        .from("usuario")
         .select("correo")
         .eq("correo", updates.correo)
         .maybeSingle();
@@ -188,18 +164,18 @@ async function getRolIdByName(nombreRol) {
     }
 
     const { data, error } = await supabase
-        .from(TABLA_USUARIO)
+        .from("usuario")
         .update(updates)
         .eq("ci", String(ci))
-        .select("ci, rol_id_rol, nombre, correo, telefono, fecha_nac, direccion, experienci")
+        .select("ci, rol_id_rol, nombre, correo, telefono, fecha_nac, direccion")
         .single();
 
     if (error) throw error;
     return data;
-    }
+}
 
-    // ✅ BAJA
-    async function deleteStudent(ci) {
+// Eliminar estudiante   
+async function deleteStudent(ci) {
     const existing = await findUserByCI(ci);
     if (!existing) {
         const err = new Error("Estudiante no encontrado");
@@ -207,27 +183,19 @@ async function getRolIdByName(nombreRol) {
         throw err;
     }
 
-    const rolEstudiante = await getRolIdByName("ESTUDIANTE");
-    if (existing.rol_id_rol !== rolEstudiante) {
-        const err = new Error("El usuario no es estudiante");
-        err.status = 400;
-        throw err;
-    }
-
     const { error } = await supabase
-        .from(TABLA_USUARIO)
+        .from("usuario")
         .delete()
         .eq("ci", String(ci));
 
     if (error) throw error;
-
     return { deleted: true };
-    }
+}
 
-    module.exports = {
+module.exports = {
     createStudent,
     listStudents,
     getStudentByCI,
     updateStudent,
     deleteStudent,
-    };
+};
