@@ -1,5 +1,5 @@
 const supabase = require('../config/supabase');
-const bcrypt = require('bcrypt');
+const EncryptUtils = require('../utils/encrypt');
 
 class DocenteService {
   // Registrar un nuevo docente
@@ -40,8 +40,7 @@ class DocenteService {
       }
 
       // Hashear la contraseña antes de guardarla
-      const saltRounds = 10;
-      const contraseniaHasheada = await bcrypt.hash(datosDocente.contrasenia, saltRounds);
+      const contraseniaHasheada = await EncryptUtils.hashPassword(datosDocente.contrasenia);
 
       // Preparar datos para insertar
       const nuevoUsuario = {
@@ -69,8 +68,8 @@ class DocenteService {
       }
 
       return {
-        success: true,
-        message: 'Docente registrado exitosamente',
+        exito: true,
+        mensaje: 'Docente registrado exitosamente',
         data: {
           ci: data[0].ci,
           nombre: data[0].nombre,
@@ -156,8 +155,7 @@ class DocenteService {
       }
       if (datosActualizar.contrasenia !== undefined) {
         // Hashear la nueva contraseña antes de guardarla
-        const saltRounds = 10;
-        const contraseniaHasheada = await bcrypt.hash(datosActualizar.contrasenia, saltRounds);
+        const contraseniaHasheada = await EncryptUtils.hashPassword(datosActualizar.contrasenia);
         datosPermitidos.contrasenia = contraseniaHasheada;
       }
 
@@ -179,8 +177,8 @@ class DocenteService {
       }
 
       return {
-        success: true,
-        message: 'Docente actualizado exitosamente',
+        exito: true,
+        mensaje: 'Docente actualizado exitosamente',
         data: {
           ci: data[0].ci,
           nombre: data[0].nombre,
@@ -223,8 +221,8 @@ class DocenteService {
       }
 
       return {
-        success: true,
-        message: 'Docente eliminado exitosamente',
+        exito: true,
+        mensaje: 'Docente eliminado exitosamente',
         data: {
           ci: docente.ci,
           nombre: docente.nombre

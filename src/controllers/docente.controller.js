@@ -14,9 +14,9 @@ class DocenteController {
 
       if (camposFaltantes.length > 0) {
         return res.status(400).json({
-          success: false,
-          message: 'Faltan campos requeridos',
-          camposFaltantes
+          exito: false,
+          mensaje: 'Faltan campos requeridos',
+          errores: camposFaltantes
         });
       }
 
@@ -26,8 +26,9 @@ class DocenteController {
       // Validar formato de CI
       if (ci.length < 4) {
         return res.status(400).json({
-          success: false,
-          message: 'El carnet de identidad debe tener al menos 4 caracteres'
+          exito: false,
+          mensaje: 'El carnet de identidad debe tener al menos 4 caracteres',
+          errores: ['CI inválido']
         });
       }
 
@@ -35,16 +36,18 @@ class DocenteController {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(correo)) {
         return res.status(400).json({
-          success: false,
-          message: 'El formato del correo electrónico no es válido'
+          exito: false,
+          mensaje: 'El formato del correo electrónico no es válido',
+          errores: ['Correo inválido']
         });
       }
 
       // Validar contraseña (mínimo 6 caracteres)
       if (contrasenia.length < 6) {
         return res.status(400).json({
-          success: false,
-          message: 'La contraseña debe tener al menos 6 caracteres'
+          exito: false,
+          mensaje: 'La contraseña debe tener al menos 6 caracteres',
+          errores: ['Contraseña muy corta']
         });
       }
 
@@ -52,16 +55,18 @@ class DocenteController {
       const fecha = new Date(fecha_nac);
       if (isNaN(fecha.getTime())) {
         return res.status(400).json({
-          success: false,
-          message: 'La fecha de nacimiento no es válida'
+          exito: false,
+          mensaje: 'La fecha de nacimiento no es válida',
+          errores: ['Fecha inválida']
         });
       }
 
       // Validar que la fecha no sea futura
       if (fecha > new Date()) {
         return res.status(400).json({
-          success: false,
-          message: 'La fecha de nacimiento no puede ser futura'
+          exito: false,
+          mensaje: 'La fecha de nacimiento no puede ser futura',
+          errores: ['Fecha futura']
         });
       }
 
@@ -76,15 +81,16 @@ class DocenteController {
       // Manejar errores específicos
       if (error.message.includes('Ya existe un usuario')) {
         return res.status(409).json({
-          success: false,
-          message: error.message
+          exito: false,
+          mensaje: error.message,
+          errores: ['Conflicto de datos']
         });
       }
 
       res.status(500).json({
-        success: false,
-        message: 'Error interno del servidor',
-        error: error.message
+        exito: false,
+        mensaje: 'Error interno del servidor',
+        errores: [error.message]
       });
     }
   }
@@ -96,23 +102,25 @@ class DocenteController {
       
       if (!ci) {
         return res.status(400).json({
-          success: false,
-          message: 'Se requiere el carnet de identidad'
+          exito: false,
+          mensaje: 'Se requiere el carnet de identidad',
+          errores: ['CI no proporcionado']
         });
       }
 
       const existe = await docenteService.verificarCIExiste(ci);
       
       res.json({
-        success: true,
-        existe
+        exito: true,
+        mensaje: 'Consulta exitosa',
+        data: { existe }
       });
     } catch (error) {
       console.error('Error en verificarCI:', error);
       res.status(500).json({
-        success: false,
-        message: 'Error al verificar el carnet',
-        error: error.message
+        exito: false,
+        mensaje: 'Error al verificar el carnet',
+        errores: [error.message]
       });
     }
   }
@@ -123,16 +131,17 @@ class DocenteController {
       const docentes = await docenteService.obtenerDocentes();
       
       res.json({
-        success: true,
+        exito: true,
+        mensaje: 'Docentes obtenidos exitosamente',
         data: docentes,
         total: docentes.length
       });
     } catch (error) {
       console.error('Error en obtenerDocentes:', error);
       res.status(500).json({
-        success: false,
-        message: 'Error al obtener los docentes',
-        error: error.message
+        exito: false,
+        mensaje: 'Error al obtener los docentes',
+        errores: [error.message]
       });
     }
   }
@@ -144,15 +153,17 @@ class DocenteController {
       
       if (!ci) {
         return res.status(400).json({
-          success: false,
-          message: 'Se requiere el carnet de identidad'
+          exito: false,
+          mensaje: 'Se requiere el carnet de identidad',
+          errores: ['CI no proporcionado']
         });
       }
 
       const docente = await docenteService.obtenerDocentePorCI(ci);
       
       res.json({
-        success: true,
+        exito: true,
+        mensaje: 'Docente obtenido exitosamente',
         data: docente
       });
     } catch (error) {
@@ -160,15 +171,16 @@ class DocenteController {
       
       if (error.message.includes('No se encontró')) {
         return res.status(404).json({
-          success: false,
-          message: error.message
+          exito: false,
+          mensaje: error.message,
+          errores: ['Docente no encontrado']
         });
       }
 
       res.status(500).json({
-        success: false,
-        message: 'Error al obtener el docente',
-        error: error.message
+        exito: false,
+        mensaje: 'Error al obtener el docente',
+        errores: [error.message]
       });
     }
   }
@@ -181,8 +193,9 @@ class DocenteController {
 
       if (!ci) {
         return res.status(400).json({
-          success: false,
-          message: 'Se requiere el carnet de identidad'
+          exito: false,
+          mensaje: 'Se requiere el carnet de identidad',
+          errores: ['CI no proporcionado']
         });
       }
 
@@ -193,25 +206,26 @@ class DocenteController {
 
       if (camposInvalidos.length > 0) {
         return res.status(400).json({
-          success: false,
-          message: 'Campos no permitidos para edición',
-          camposInvalidos,
-          camposPermitidos
+          exito: false,
+          mensaje: 'Campos no permitidos para edición',
+          errores: [`Campos inválidos: ${camposInvalidos.join(', ')}. Permitidos: ${camposPermitidos.join(', ')}`]
         });
       }
 
       // Validaciones específicas
       if (datosActualizar.contrasenia && datosActualizar.contrasenia.length < 6) {
         return res.status(400).json({
-          success: false,
-          message: 'La contraseña debe tener al menos 6 caracteres'
+          exito: false,
+          mensaje: 'La contraseña debe tener al menos 6 caracteres',
+          errores: ['Contraseña muy corta']
         });
       }
 
       if (datosActualizar.telefono && datosActualizar.telefono.length < 8) {
         return res.status(400).json({
-          success: false,
-          message: 'El teléfono debe tener al menos 8 caracteres'
+          exito: false,
+          mensaje: 'El teléfono debe tener al menos 8 caracteres',
+          errores: ['Teléfono inválido']
         });
       }
 
@@ -223,22 +237,24 @@ class DocenteController {
       
       if (error.message.includes('No se encontró')) {
         return res.status(404).json({
-          success: false,
-          message: error.message
+          exito: false,
+          mensaje: error.message,
+          errores: ['Docente no encontrado']
         });
       }
 
       if (error.message.includes('No se proporcionaron')) {
         return res.status(400).json({
-          success: false,
-          message: error.message
+          exito: false,
+          mensaje: error.message,
+          errores: ['Sin campos para actualizar']
         });
       }
 
       res.status(500).json({
-        success: false,
-        message: 'Error al editar el docente',
-        error: error.message
+        exito: false,
+        mensaje: 'Error al editar el docente',
+        errores: [error.message]
       });
     }
   }
@@ -250,8 +266,9 @@ class DocenteController {
 
       if (!ci) {
         return res.status(400).json({
-          success: false,
-          message: 'Se requiere el carnet de identidad'
+          exito: false,
+          mensaje: 'Se requiere el carnet de identidad',
+          errores: ['CI no proporcionado']
         });
       }
 
@@ -263,15 +280,16 @@ class DocenteController {
       
       if (error.message.includes('No se encontró')) {
         return res.status(404).json({
-          success: false,
-          message: error.message
+          exito: false,
+          mensaje: error.message,
+          errores: ['Docente no encontrado']
         });
       }
 
       res.status(500).json({
-        success: false,
-        message: 'Error al eliminar el docente',
-        error: error.message
+        exito: false,
+        mensaje: 'Error al eliminar el docente',
+        errores: [error.message]
       });
     }
   }

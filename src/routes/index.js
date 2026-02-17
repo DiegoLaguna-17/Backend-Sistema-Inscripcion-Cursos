@@ -1,19 +1,22 @@
 const express = require('express');
-const docenteController = require('../controllers/docente.controller');
 const estudianteRoutes = require('./estudiante.routes');
+const docenteRoutes = require('./docentes.routes');
+const authController = require('../controllers/auth.controller');
+const { verificarAutenticacion } = require('../middlewares/auth.middleware');
 
 const router = express.Router();
+
+// RUTAS PARA AUTENTICACIÓN
+router.post('/auth/login', authController.login);
+router.post('/auth/logout', authController.logout);
+router.get('/auth/verificar', authController.verificarToken);
+router.get('/auth/permisos', verificarAutenticacion, authController.obtenerPermisos);
 
 // Rutas para estudiantes (de tu compañera)
 router.use('/estudiantes', estudianteRoutes);
 
 // Rutas para docentes (tuyas)
-router.post('/usuarios/registro-docente', docenteController.registrarDocente);
-router.get('/usuarios/verificar-ci/:ci', docenteController.verificarCI);
-router.get('/usuarios/docentes', docenteController.obtenerDocentes);
-router.get('/usuarios/docentes/:ci', docenteController.obtenerDocente);
-router.put('/usuarios/docentes/:ci', docenteController.editarDocente);
-router.delete('/usuarios/docentes/:ci', docenteController.eliminarDocente);
+router.use('/docentes', docenteRoutes);
 
 // Ruta de prueba
 router.get('/test', (req, res) => {
