@@ -1,3 +1,4 @@
+const EncryptUtils = require('../utils/encrypt');
 class Administrador {
 
     //DEFINIMOS LA ESTRUCTURA DE LOS DATOS QUE DEBEMOS RECIBIR
