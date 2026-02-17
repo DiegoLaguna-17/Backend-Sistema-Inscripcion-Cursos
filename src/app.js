@@ -1,18 +1,19 @@
-require("dotenv").config();
+const express = require('express');
 
-const express = require("express");
-const routes = require("./routes/index");
-const { errorMiddleware } = require("./middlewares/error.middleware");
+// Cargamos las variables de entorno
+require('dotenv').config();
 
 const app = express();
+
 app.use(express.json());
 
-app.get("/", (req, res) => {
-  res.send("Backend funcionando");
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'Backend funcionando',
+    supabase_conectado: true,
+    supabase_url: process.env.SUPABASE_URL ? 'Configurada' : 'No configurada'
+  });
 });
-
-app.use("/api", routes);
-app.use(errorMiddleware);
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
