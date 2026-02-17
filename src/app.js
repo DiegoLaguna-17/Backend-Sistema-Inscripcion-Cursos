@@ -13,6 +13,7 @@ app.get("/", (req, res) => {
     message: "Backend funcionando",
     supabase_conectado: true,
     supabase_url: process.env.SUPABASE_URL ? "Configurada" : "No configurada",
+    instrucciones: 'Usa /api por delante para acceder a las API'
   });
 });
 
