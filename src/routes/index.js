@@ -2,6 +2,8 @@ const express = require('express');
 const docenteController = require('../controllers/docente.controller');
 const estudianteRoutes = require('./estudiante.routes');
 const administradorController = require('../controllers/administrador.controller');
+const authController = require('../controllers/auth.controller');
+const authMiddleware = require('../middlewares/auth.middleware');
 
 const router = express.Router();
 
@@ -21,6 +23,12 @@ router.post('/administradores/registro', administradorController.registrar);
 router.get('/administradores', administradorController.obtenerTodos);
 router.patch('/administradores/:ci', administradorController.actualizarParcial);
 router.delete('/administradores/:ci', administradorController.eliminar);
+
+//RUTAS PARA AUTENTICACIÓN
+router.post('/auth/login', authController.login);
+router.post('/auth/logout', authController.logout);
+router.get('/auth/verificar', authController.verificarToken);
+router.get('/auth/permisos', authMiddleware.verificarAutenticacion, authController.obtenerPermisos);
 
 // Ruta de prueba
 router.get('/test', (req, res) => {
