@@ -1,273 +1,201 @@
-const supabase = require('../config/supabase');
-const bcrypt = require('bcrypt');
+const bcrypt = require("bcrypt");
+const supabase = require("../config/supabase");
 
-class UsuarioService {
-  // Registrar un nuevo docente
-  async registrarDocente(datosDocente) {
+const SALT_ROUNDS = 10;
 
-    try {
-      // Primero verificar que el CI no exista
-      const { data: usuarioExiste, error: errorBusqueda } = await supabase
-        .from('usuario')
-        .select('ci')
-        .eq('ci', datosDocente.ci)
-        .single();
+async function getRolIdByName(nombreRol) {
+    const { data, error } = await supabase
+        .from("rol")
+        .select("id_rol, rol")
+        .ilike("rol", nombreRol)
+        .maybeSingle();
 
-      if (usuarioExiste) {
-        throw new Error('Ya existe un usuario con ese carnet de identidad');
-      }
-
-      // Verificar que el correo no exista
-      const { data: correoExiste, error: errorCorreo } = await supabase
-        .from('usuario')
-        .select('correo')
-        .eq('correo', datosDocente.correo)
-        .single();
-
-      if (correoExiste) {
-        throw new Error('Ya existe un usuario con ese correo electrónico');
-      }
-
-      // Obtener el ID del rol "docente" (asumo que existe)
-      const { data: rolDocente, error: errorRol } = await supabase
-        .from('rol')
-        .select('id_rol')
-        .eq('rol', 'docente')
-        .single();
-
-      if (errorRol || !rolDocente) {
-        throw new Error('No se encontró el rol de docente en el sistema');
-      }
-
-      // Hashear la contraseña antes de guardarla
-      const saltRounds = 10;
-      const contraseniaHasheada = await bcrypt.hash(datosDocente.contrasenia, saltRounds);
-
-      // Preparar datos para insertar
-      const nuevoUsuario = {
-        ci: datosDocente.ci,
-        nombre: datosDocente.nombre,
-        correo: datosDocente.correo,
-        telefono: datosDocente.telefono,
-        contrasenia: contraseniaHasheada, // Contraseña ya hasheada
-        fecha_nac: datosDocente.fecha_nac,
-        direccion: datosDocente.direccion,
-        experiencia: datosDocente.experiencia,
-        rol_id_rol: rolDocente.id_rol,
-        estado: true // Por defecto el usuario está activo
-      };
-
-      // Insertar el nuevo usuario
-      const { data, error } = await supabase
-        .from('usuario')
-        .insert([nuevoUsuario])
-        .select();
-
-      if (error) {
-        console.error('Error al insertar usuario:', error);
-        throw new Error('Error al registrar el docente: ' + error.message);
-      }
-
-      return {
-        success: true,
-        message: 'Docente registrado exitosamente',
-        data: {
-          ci: data[0].ci,
-          nombre: data[0].nombre,
-          correo: data[0].correo
-        }
-      };
-
-    } catch (error) {
-      console.error('Error en registrarDocente:', error);
-      throw error;
+    if (error) throw error;
+    if (!data) {
+        const err = new Error(`No existe el rol '${nombreRol}' en la tabla rol`);
+        err.status = 400;
+        throw err;
     }
-  }
-
-  // Verificar si un CI existe
-  async verificarCIExiste(ci) {
-    try {
-      const { data, error } = await supabase
-        .from('usuario')
-        .select('ci')
-        .eq('ci', ci)
-        .single();
-
-      return !!data; // Devuelve true si existe, false si no
-    } catch (error) {
-      return false; // Si hay error, asumimos que no existe
-    }
-  }
-
-  // Obtener lista de docentes activos
-  async obtenerDocentes() {
-    try {
-      const { data, error } = await supabase
-        .from('usuario')
-        .select(`
-          ci,
-          nombre,
-          correo,
-          telefono,
-          direccion,
-          experiencia,
-          fecha_nac,
-          estado,
-          rol!inner(rol)
-        `)
-        .eq('rol.rol', 'docente')
-        .eq('estado', true)
-        .order('nombre', { ascending: true });
-
-      if (error) {
-        throw new Error('Error al obtener los docentes: ' + error.message);
-      }
-
-      return data;
-    } catch (error) {
-      console.error('Error en obtenerDocentes:', error);
-      throw error;
-    }
-  }
-
-  // Editar docente (solo campos permitidos: teléfono, dirección, contraseña)
-  async editarDocente(ci, datosActualizar) {
-    try {
-      // Verificar que el docente existe y está activo
-      const { data: docente, error: errorDocente } = await supabase
-        .from('usuario')
-        .select('ci, rol!inner(rol)')
-        .eq('ci', ci)
-        .eq('rol.rol', 'docente')
-        .eq('estado', true)
-        .single();
-
-      if (errorDocente || !docente) {
-        throw new Error('No se encontró el docente o está inactivo');
-      }
-
-      // Preparar datos para actualizar (solo campos permitidos)
-      const datosPermitidos = {};
-      if (datosActualizar.telefono !== undefined) {
-        datosPermitidos.telefono = datosActualizar.telefono;
-      }
-      if (datosActualizar.direccion !== undefined) {
-        datosPermitidos.direccion = datosActualizar.direccion;
-      }
-      if (datosActualizar.contrasenia !== undefined) {
-        // Hashear la nueva contraseña antes de guardarla
-        const saltRounds = 10;
-        const contraseniaHasheada = await bcrypt.hash(datosActualizar.contrasenia, saltRounds);
-        datosPermitidos.contrasenia = contraseniaHasheada;
-      }
-
-      // Verificar que al menos un campo se va a actualizar
-      if (Object.keys(datosPermitidos).length === 0) {
-        throw new Error('No se proporcionaron campos válidos para actualizar');
-      }
-
-      // Actualizar el docente
-      const { data, error } = await supabase
-        .from('usuario')
-        .update(datosPermitidos)
-        .eq('ci', ci)
-        .select();
-
-      if (error) {
-        console.error('Error al actualizar docente:', error);
-        throw new Error('Error al actualizar el docente: ' + error.message);
-      }
-
-      return {
-        success: true,
-        message: 'Docente actualizado exitosamente',
-        data: {
-          ci: data[0].ci,
-          nombre: data[0].nombre,
-          camposActualizados: Object.keys(datosPermitidos)
-        }
-      };
-
-    } catch (error) {
-      console.error('Error en editarDocente:', error);
-      throw error;
-    }
-  }
-
-  // Eliminar docente (eliminación lógica)
-  async eliminarDocente(ci) {
-    try {
-      // Verificar que el docente existe y está activo
-      const { data: docente, error: errorDocente } = await supabase
-        .from('usuario')
-        .select('ci, nombre, rol!inner(rol)')
-        .eq('ci', ci)
-        .eq('rol.rol', 'docente')
-        .eq('estado', true)
-        .single();
-
-      if (errorDocente || !docente) {
-        throw new Error('No se encontró el docente o ya está inactivo');
-      }
-
-      // Cambiar estado a false (eliminación lógica)
-      const { data, error } = await supabase
-        .from('usuario')
-        .update({ estado: false })
-        .eq('ci', ci)
-        .select();
-
-      if (error) {
-        console.error('Error al eliminar docente:', error);
-        throw new Error('Error al eliminar el docente: ' + error.message);
-      }
-
-      return {
-        success: true,
-        message: 'Docente eliminado exitosamente',
-        data: {
-          ci: docente.ci,
-          nombre: docente.nombre
-        }
-      };
-
-    } catch (error) {
-      console.error('Error en eliminarDocente:', error);
-      throw error;
-    }
-  }
-
-  // Obtener un docente específico por CI
-  async obtenerDocentePorCI(ci) {
-    try {
-      const { data, error } = await supabase
-        .from('usuario')
-        .select(`
-          ci,
-          nombre,
-          correo,
-          telefono,
-          direccion,
-          experiencia,
-          fecha_nac,
-          estado,
-          rol!inner(rol)
-        `)
-        .eq('ci', ci)
-        .eq('rol.rol', 'docente')
-        .eq('estado', true)
-        .single();
-
-      if (error || !data) {
-        throw new Error('No se encontró el docente o está inactivo');
-      }
-
-      return data;
-    } catch (error) {
-      console.error('Error en obtenerDocentePorCI:', error);
-      throw error;
-    }
-  }
+    return data.id_rol;
 }
 
-module.exports = new UsuarioService();
+async function findUserByCI(ci) {
+    const { data, error } = await supabase
+        .from("usuario")
+        .select("*")
+        .eq("ci", String(ci))
+        .maybeSingle();
+
+    if (error) throw error;
+    return data;
+}
+
+// Registrar estudiante
+async function createStudent(payload) {
+    const { ci, nombre, correo, telefono, contrasenia, fecha_nac, direccion } = payload;
+
+    if (!ci || !nombre || !correo || !contrasenia) {
+        const err = new Error("Campos obligatorios: ci, nombre, correo, contrasenia");
+        err.status = 400;
+        throw err;
+    }
+
+    // CI duplicado
+    const existingCI = await findUserByCI(ci);
+    if (existingCI) {
+        const err = new Error("Ya existe un usuario con ese CI");
+        err.status = 409;
+        throw err;
+    }
+
+    // correo duplicado
+    const { data: existingEmail, error: errEmail } = await supabase
+        .from("usuario")
+        .select("correo")
+        .eq("correo", correo)
+        .maybeSingle();
+
+    if (errEmail) throw errEmail;
+    if (existingEmail) {
+        const err = new Error("Ya existe un usuario con ese correo");
+        err.status = 409;
+        throw err;
+    }
+
+    // rol estudiante
+    const rol_id_rol = await getRolIdByName("ESTUDIANTE");
+
+    // hash contraseña
+    const passwordHash = await bcrypt.hash(contrasenia, SALT_ROUNDS);
+
+    const { data, error } = await supabase
+        .from("usuario")
+        .insert([{
+            ci: String(ci),
+            rol_id_rol,
+            nombre,
+            correo,
+            telefono: telefono ?? null,
+            contrasenia: passwordHash,
+            fecha_nac: fecha_nac ?? null,
+            direccion: direccion ?? null,
+        }])
+        .select("ci, rol_id_rol, nombre, correo, telefono, fecha_nac, direccion")
+        .single();
+
+    if (error) throw error;
+    return data;
+}
+
+// Listar estudiantes
+async function listStudents() {
+    const rol_id_rol = await getRolIdByName("ESTUDIANTE");
+
+    const { data, error } = await supabase
+        .from("usuario")
+        .select("ci, rol_id_rol, nombre, correo, telefono, fecha_nac, direccion")
+        .eq("rol_id_rol", rol_id_rol)
+        .order("nombre", { ascending: true });
+
+    if (error) throw error;
+    return data;
+}
+
+// Obtener estudiante por CI
+async function getStudentByCI(ci) {
+    const rol_id_rol = await getRolIdByName("ESTUDIANTE");
+
+    const { data, error } = await supabase
+        .from("usuario")
+        .select("ci, rol_id_rol, nombre, correo, telefono, fecha_nac, direccion")
+        .eq("ci", String(ci))
+        .eq("rol_id_rol", rol_id_rol)
+        .maybeSingle();
+
+    if (error) throw error;
+    if (!data) {
+        const err = new Error("Estudiante no encontrado");
+        err.status = 404;
+        throw err;
+    }
+    return data;
+}
+
+// Editar estudiante
+async function updateStudent(ci, payload) {
+    const existing = await findUserByCI(ci);
+    if (!existing) {
+        const err = new Error("Estudiante no encontrado");
+        err.status = 404;
+        throw err;
+    }
+
+    const updates = {};
+    if (payload.nombre !== undefined) updates.nombre = payload.nombre;
+    if (payload.correo !== undefined) updates.correo = payload.correo;
+    if (payload.telefono !== undefined) updates.telefono = payload.telefono;
+    if (payload.fecha_nac !== undefined) updates.fecha_nac = payload.fecha_nac;
+    if (payload.direccion !== undefined) updates.direccion = payload.direccion;
+
+    if (payload.contrasenia) {
+        updates.contrasenia = await bcrypt.hash(payload.contrasenia, SALT_ROUNDS);
+    }
+
+    if (Object.keys(updates).length === 0) {
+        const err = new Error("No enviaste campos para actualizar");
+        err.status = 400;
+        throw err;
+    }
+
+    // Si el correo se está actualizando, verificar que no esté en uso por otro usuario
+    if (updates.correo && updates.correo !== existing.correo) {
+        const { data: emailTaken, error: emailErr } = await supabase
+            .from("usuario")
+            .select("correo")
+            .eq("correo", updates.correo)
+            .maybeSingle();
+
+        if (emailErr) throw emailErr;
+        if (emailTaken) {
+            const err = new Error("Ese correo ya está en uso");
+            err.status = 409;
+            throw err;
+        }
+    }
+
+    const { data, error } = await supabase
+        .from("usuario")
+        .update(updates)
+        .eq("ci", String(ci))
+        .select("ci, rol_id_rol, nombre, correo, telefono, fecha_nac, direccion")
+        .single();
+
+    if (error) throw error;
+    return data;
+}
+
+// Eliminar estudiante
+async function deleteStudent(ci) {
+    const existing = await findUserByCI(ci);
+    if (!existing) {
+        const err = new Error("Estudiante no encontrado");
+        err.status = 404;
+        throw err;
+    }
+
+    const { error } = await supabase
+        .from("usuario")
+        .delete()
+        .eq("ci", String(ci));
+
+    if (error) throw error;
+    return { deleted: true };
+}
+
+module.exports = {
+    createStudent,
+    listStudents,
+    getStudentByCI,
+    updateStudent,
+    deleteStudent,
+};
