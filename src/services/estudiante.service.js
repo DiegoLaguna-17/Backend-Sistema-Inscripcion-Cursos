@@ -1,8 +1,10 @@
 const supabase = require('../config/supabase');
+const bcrypt = require('bcrypt');
 
 class UsuarioService {
   // Registrar un nuevo docente
   async registrarDocente(datosDocente) {
+
     try {
       // Primero verificar que el CI no exista
       const { data: usuarioExiste, error: errorBusqueda } = await supabase
@@ -37,13 +39,17 @@ class UsuarioService {
         throw new Error('No se encontró el rol de docente en el sistema');
       }
 
+      // Hashear la contraseña antes de guardarla
+      const saltRounds = 10;
+      const contraseniaHasheada = await bcrypt.hash(datosDocente.contrasenia, saltRounds);
+
       // Preparar datos para insertar
       const nuevoUsuario = {
         ci: datosDocente.ci,
         nombre: datosDocente.nombre,
         correo: datosDocente.correo,
         telefono: datosDocente.telefono,
-        contrasenia: datosDocente.contrasenia,
+        contrasenia: contraseniaHasheada, // Contraseña ya hasheada
         fecha_nac: datosDocente.fecha_nac,
         direccion: datosDocente.direccion,
         experiencia: datosDocente.experiencia,
@@ -74,24 +80,6 @@ class UsuarioService {
 
     } catch (error) {
       console.error('Error en registrarDocente:', error);
-      throw error;
-    }
-  }
-
-  // Obtener todos los roles disponibles
-  async obtenerRoles() {
-    try {
-      const { data, error } = await supabase
-        .from('rol')
-        .select('*');
-
-      if (error) {
-        throw new Error('Error al obtener los roles: ' + error.message);
-      }
-
-      return data;
-    } catch (error) {
-      console.error('Error en obtenerRoles:', error);
       throw error;
     }
   }
@@ -167,7 +155,10 @@ class UsuarioService {
         datosPermitidos.direccion = datosActualizar.direccion;
       }
       if (datosActualizar.contrasenia !== undefined) {
-        datosPermitidos.contrasenia = datosActualizar.contrasenia;
+        // Hashear la nueva contraseña antes de guardarla
+        const saltRounds = 10;
+        const contraseniaHasheada = await bcrypt.hash(datosActualizar.contrasenia, saltRounds);
+        datosPermitidos.contrasenia = contraseniaHasheada;
       }
 
       // Verificar que al menos un campo se va a actualizar

@@ -1,7 +1,6 @@
 const express = require('express');
 const cors = require('cors');
 
-// Cargamos las variables de entorno
 require('dotenv').config();
 
 const app = express();
@@ -23,14 +22,13 @@ app.get('/', (req, res) => {
     supabase_conectado: true,
     supabase_url: process.env.SUPABASE_URL ? 'Configurada' : 'No configurada',
     endpoints_disponibles: [
-      'POST /api/usuarios/registro-docente',
-      'GET /api/usuarios/docentes',
-      'GET /api/usuarios/docentes/:ci', 
-      'PUT /api/usuarios/docentes/:ci',
-      'DELETE /api/usuarios/docentes/:ci',
-      'GET /api/usuarios/verificar-ci/:ci',
-      'GET /api/roles',
-      'GET /api/test'
+      'POST /api/usuarios/registro-docente', //Crear nuevo docente
+      'GET /api/usuarios/docentes', //consultar docentes activos
+      'GET /api/usuarios/docentes/:ci', //consultar docente por CI
+      'PUT /api/usuarios/docentes/:ci', //editar docente por CI
+      'DELETE /api/usuarios/docentes/:ci', //eliminar docente por CI
+      'GET /api/usuarios/verificar-ci/:ci', //verificar si un CI existe
+      'GET /api/test' //ruta de prueba para verificar que la API funciona correctamente
     ]
   });
 });

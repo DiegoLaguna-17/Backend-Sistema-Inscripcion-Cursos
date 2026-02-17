@@ -10,7 +10,6 @@ router.get('/usuarios/docentes', usuarioController.obtenerDocentes);
 router.get('/usuarios/docentes/:ci', usuarioController.obtenerDocente);
 router.put('/usuarios/docentes/:ci', usuarioController.editarDocente);
 router.delete('/usuarios/docentes/:ci', usuarioController.eliminarDocente);
-router.get('/roles', usuarioController.obtenerRoles);
 
 // Ruta de prueba
 router.get('/test', (req, res) => {

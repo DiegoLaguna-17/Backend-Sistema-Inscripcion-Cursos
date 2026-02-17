@@ -89,25 +89,6 @@ class UsuarioController {
     }
   }
 
-  // Obtener roles disponibles
-  async obtenerRoles(req, res) {
-    try {
-      const roles = await usuarioService.obtenerRoles();
-      
-      res.json({
-        success: true,
-        data: roles
-      });
-    } catch (error) {
-      console.error('Error en obtenerRoles:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Error al obtener los roles',
-        error: error.message
-      });
-    }
-  }
-
   // Verificar si un CI existe (útil para validaciones en frontend)
   async verificarCI(req, res) {
     try {
