@@ -18,18 +18,18 @@ router.post(
 
 // Modificar estudiante
 router.put(
-  "/:ci",
-  verificarAutenticacion,
-  verificarPermiso("registro de usuarios"),
-  estudianteController.actualizarEstudiante
+    "/:ci",
+    verificarAutenticacion,
+    verificarPermiso("registro de usuarios"),
+    estudianteController.actualizarEstudiante
 );
 
 // Eliminar estudiante
 router.delete(
-  "/:ci",
-  verificarAutenticacion,
-  verificarPermiso("registro de usuarios"),
-  estudianteController.eliminarEstudiante
+    "/:ci",
+    verificarAutenticacion,
+    verificarPermiso("registro de usuarios"),
+    estudianteController.eliminarEstudiante
 );
 
 // Listar estudiantes
