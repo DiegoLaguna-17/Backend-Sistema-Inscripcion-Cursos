@@ -20,10 +20,35 @@ router.use('/estudiantes', estudianteRoutes);
 router.use('/docentes', docenteRoutes);
 
 // RUTAS PARA ADMINISTRADORES
-router.post('/administradores/registro', administradorController.registrar);
-router.get('/administradores', administradorController.obtenerTodos);
-router.patch('/administradores/:ci', administradorController.actualizarParcial);
-router.delete('/administradores/:ci', administradorController.eliminar);
+router.post(
+  '/administradores/registro',
+  authMiddleware.verificarAutenticacion,
+  authMiddleware.verificarPermiso('registro de usuarios'),
+  administradorController.registrar
+);
+// Listar administradores (solo para seguridad)
+router.get(
+  '/administradores',
+  authMiddleware.verificarAutenticacion,
+  authMiddleware.verificarPermiso('registro de usuarios'),
+  administradorController.obtenerTodos
+);
+
+// Actualizar administrador (por parte del de seguridad)
+router.patch(
+  '/administradores/:ci',
+  authMiddleware.verificarAutenticacion,
+  authMiddleware.verificarPermiso('registro de usuarios'),
+  administradorController.actualizarParcial
+);
+
+//Eliminar administrador (por parte del de seguridad)
+router.delete(
+  '/administradores/:ci',
+  authMiddleware.verificarAutenticacion,
+  authMiddleware.verificarPermiso('registro de usuarios'),
+  administradorController.eliminar
+);
 
 // Ruta de prueba
 router.get('/test', (req, res) => {
