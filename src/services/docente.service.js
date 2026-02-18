@@ -53,6 +53,7 @@ class DocenteService {
         direccion: datosDocente.direccion,
         experiencia: datosDocente.experiencia,
         rol_id_rol: rolDocente.id_rol,
+        carrera_usuario: null, // Docentes no están asociados a una carrera
         estado: true
       };
 
