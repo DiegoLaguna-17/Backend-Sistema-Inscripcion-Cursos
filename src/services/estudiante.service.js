@@ -52,14 +52,15 @@ if (!data) {
 
 // Select join para obtener estudiante con su carrera
 const SELECT_ESTUDIANTE_CON_CARRERA = `
-ci, rol_id_rol, nombre, correo, telefono, fecha_nac, direccion, carrera_usuario,
-carrera:carrera_usuario (
+    ci, rol_id_rol, nombre, correo, telefono, fecha_nac, direccion, carrera_usuario, estado,
+    carrera:carrera_usuario (
     codigo,
     nombre,
     descripcion,
     duracion
-)
+    )
 `;
+
 
 // Registrar estudiante
 async function createStudent(payload) {
@@ -123,7 +124,8 @@ const { data, error } = await supabase
         contrasenia: passwordHash,
         fecha_nac: fecha_nac ?? null,
         direccion: direccion ?? null,
-      carrera_usuario: codigoCarrera ?? null, // guarda null si no llega
+        carrera_usuario: codigoCarrera ?? null, // guarda null si no llega
+        estado: true,
     }])
     .select(SELECT_ESTUDIANTE_CON_CARRERA)
     .single();
@@ -140,6 +142,7 @@ const { data, error } = await supabase
     .from("usuario")
     .select(SELECT_ESTUDIANTE_CON_CARRERA)
     .eq("rol_id_rol", rol_id_rol)
+    .eq("estado", true)
     .order("nombre", { ascending: true });
 
 if (error) throw error;
@@ -155,6 +158,7 @@ const { data, error } = await supabase
     .select(SELECT_ESTUDIANTE_CON_CARRERA)
     .eq("ci", String(ci))
     .eq("rol_id_rol", rol_id_rol)
+    .eq("estado", true)
     .maybeSingle();
 
     if (error) throw error;
@@ -169,11 +173,12 @@ const { data, error } = await supabase
 // Editar estudiante
 async function updateStudent(ci, payload) {
 const existing = await findUserByCI(ci);
-    if (!existing) {
+if (!existing || existing.estado === false) {
     const err = new Error("Estudiante no encontrado");
     err.status = 404;
     throw err;
 }
+
 
 const updates = {};
     if (payload.nombre !== undefined) updates.nombre = payload.nombre;
@@ -229,19 +234,22 @@ const { data, error } = await supabase
 // Eliminar estudiante
 async function deleteStudent(ci) {
 const existing = await findUserByCI(ci);
-    if (!existing) {
+
+if (!existing || existing.estado === false) {
     const err = new Error("Estudiante no encontrado");
     err.status = 404;
     throw err;
 }
 
-    const { error } = await supabase
+const { data, error } = await supabase
     .from("usuario")
-    .delete()
-    .eq("ci", String(ci));
+    .update({ estado: false }) 
+    .eq("ci", String(ci))
+    .select("ci, estado")
+    .single();
 
-    if (error) throw error;
-    return { deleted: true };
+if (error) throw error;
+    return { deleted: true, ci: data.ci, estado: data.estado };
 }
 
 module.exports = {
