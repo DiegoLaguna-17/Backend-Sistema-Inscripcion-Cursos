@@ -2,6 +2,7 @@ const express = require('express');
 const estudianteRoutes = require('./estudiante.routes');
 const docenteRoutes = require('./docentes.routes');
 const administradorController = require('../controllers/administrador.controller');
+const carreraRoutes = require('./carrera.routes');
 const authController = require('../controllers/auth.controller');
 const authMiddleware = require('../middlewares/auth.middleware');
 
@@ -26,6 +27,9 @@ router.post(
   authMiddleware.verificarPermiso('registro de usuarios'),
   administradorController.registrar
 );
+// RUTAS PARA CARRERAS
+router.use('/carreras', carreraRoutes);
+
 // Listar administradores (solo para seguridad)
 router.get(
   '/administradores',
