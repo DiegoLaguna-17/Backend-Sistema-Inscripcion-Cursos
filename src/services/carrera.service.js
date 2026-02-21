@@ -1,64 +1,81 @@
 // services/carrera.service.js
 const Carrera = require('../models/Carrera');
+const  supabase  = require('../config/supabase'); // ejemplo
 
-const carreras = [];
+const crearCarrera = async (data) => {
+    const carrera = new Carrera(data);
 
-const crearCarrera = (data) => {
-    // Validaciones obligatorias
-    if (!data.nombre || !data.codigo || !data.duracion || !data.descripcion) {
-        throw new Error('Todos los campos son obligatorios');
+    // Validación de modelo
+    const validacion = carrera.validar();
+    if (!validacion.valido) {
+        throw {
+            status: 400,
+            message: 'Errores de validación',
+            errors: validacion.errores
+        };
     }
 
-    // Validar unicidad
-    const existe = carreras.find(
-        c => c.codigo === data.codigo || c.nombre === data.nombre
-    );
+    // Validar duplicados
+    const { data: existente } = await supabase
+        .from('carrera')
+        .select('codigo, nombre')
+        .or(`codigo.eq.${carrera.codigo},nombre.eq.${carrera.nombre}`);
 
-    if (existe) {
-        throw new Error('Ya existe una carrera con el mismo nombre o código');
+    if (existente.length > 0) {
+        throw {
+            status: 409,
+            message: 'Ya existe una carrera con el mismo código o nombre'
+        };
     }
 
-    const nuevaCarrera = new Carrera(data);
-    carreras.push(nuevaCarrera);
+    // Insertar
+    const { data: creada, error } = await supabase
+        .from('carrera')
+        .insert(carrera.toDatabase())
+        .select()
+        .single();
 
-    return nuevaCarrera;
+    if (error) {
+        throw error;
+    }
+
+    return creada;
 };
 
-const listarCarreras = () => {
-    return carreras;
+const obtenerCarreras = async () => {
+    const { data, error } = await supabase
+        .from('carrera')
+        .select('*');
+
+    if (error) throw error;
+    return data;
 };
 
-const actualizarCarrera = (codigo, data) => {
-    const index = carreras.findIndex(c => c.codigo === codigo);
+const actualizarCarrera = async (codigo, data) => {
+    const carrera = new Carrera(data);
 
-    if (index === -1) {
-        throw new Error('Carrera no encontrada');
+    const validacion = carrera.validar();
+    if (!validacion.valido) {
+        throw {
+            status: 400,
+            message: 'Errores de validación',
+            errors: validacion.errores
+        };
     }
 
-    // Validar duplicados (excepto la misma carrera)
-    const duplicado = carreras.find(
-        c =>
-            (c.codigo === data.codigo || c.nombre === data.nombre) &&
-            c.codigo !== codigo
-    );
+    const { data: actualizada, error } = await supabase
+        .from('carrera')
+        .update(carrera.toDatabase())
+        .eq('codigo', codigo)
+        .select()
+        .single();
 
-    if (duplicado) {
-        throw new Error('El nombre o código ya pertenece a otra carrera');
-    }
-
-    carreras[index] = {
-        ...carreras[index],
-        nombre: data.nombre,
-        descripcion: data.descripcion,
-        duracion: data.duracion,
-        codigo: data.codigo
-    };
-
-    return carreras[index];
+    if (error) throw error;
+    return actualizada;
 };
 
 module.exports = {
     crearCarrera,
-    listarCarreras,
+    obtenerCarreras,
     actualizarCarrera
 };

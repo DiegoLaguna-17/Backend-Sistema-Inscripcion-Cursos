@@ -1,10 +1,33 @@
 // routes/carrera.routes.js
-const express = require('express');
-const router = express.Router();
+const { Router } = require('express');
 const carreraController = require('../controllers/carrera.controller');
 
-router.post('/carreras', carreraController.crearCarrera);
-router.get('/carreras', carreraController.listarCarreras);
-router.put('/carreras/:codigo', carreraController.actualizarCarrera);
+const {
+    verificarAutenticacion,
+    verificarPermiso
+} = require('../middlewares/auth.middleware');
+
+const router = Router();
+
+router.post(
+    '/',
+    verificarAutenticacion,
+    verificarPermiso('gestión académica'),
+    carreraController.crearCarrera
+);
+
+router.get(
+    '/',
+    verificarAutenticacion,
+    verificarPermiso('gestión académica'),
+    carreraController.obtenerCarreras
+);
+
+router.put(
+    '/:codigo',
+    verificarAutenticacion,
+    verificarPermiso('gestión académica'),
+    carreraController.actualizarCarrera
+);
 
 module.exports = router;

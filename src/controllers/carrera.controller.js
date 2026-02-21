@@ -1,38 +1,44 @@
 // controllers/carrera.controller.js
 const carreraService = require('../services/carrera.service');
 
-const crearCarrera = (req, res) => {
+const crearCarrera = async (req, res, next) => {
     try {
-        const carrera = carreraService.crearCarrera(req.body);
+        const carrera = await carreraService.crearCarrera(req.body);
         res.status(201).json({
-            mensaje: 'Carrera creada exitosamente',
+            message: 'Carrera creada exitosamente',
             data: carrera
         });
     } catch (error) {
-        res.status(400).json({ mensaje: error.message });
+        next(error);
     }
 };
 
-const listarCarreras = (req, res) => {
-    const carreras = carreraService.listarCarreras();
-    res.status(200).json(carreras);
+const obtenerCarreras = async (req, res, next) => {
+    try {
+        const carreras = await carreraService.obtenerCarreras();
+        res.json(carreras);
+    } catch (error) {
+        next(error);
+    }
 };
 
-const actualizarCarrera = (req, res) => {
+const actualizarCarrera = async (req, res, next) => {
     try {
-        const { codigo } = req.params;
-        const carreraActualizada = carreraService.actualizarCarrera(codigo, req.body);
-        res.status(200).json({
-            mensaje: 'Carrera actualizada correctamente',
-            data: carreraActualizada
+        const carrera = await carreraService.actualizarCarrera(
+            req.params.codigo,
+            req.body
+        );
+        res.json({
+            message: 'Carrera actualizada correctamente',
+            data: carrera
         });
     } catch (error) {
-        res.status(400).json({ mensaje: error.message });
+        next(error);
     }
 };
 
 module.exports = {
     crearCarrera,
-    listarCarreras,
+    obtenerCarreras,
     actualizarCarrera
 };
