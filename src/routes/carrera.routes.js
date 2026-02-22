@@ -12,21 +12,21 @@ const router = Router();
 router.post(
     '/',
     verificarAutenticacion,
-    verificarPermiso('gestión académica'),
+    verificarPermiso("crear carreras"),
     carreraController.crearCarrera
 );
 
 router.get(
     '/',
     verificarAutenticacion,
-    verificarPermiso('gestión académica'),
+    verificarPermiso("crear carreras"),
     carreraController.obtenerCarreras
 );
 
 router.put(
     '/:codigo',
     verificarAutenticacion,
-    verificarPermiso('gestión académica'),
+    verificarPermiso("crear carreras"),
     carreraController.actualizarCarrera
 );
 
