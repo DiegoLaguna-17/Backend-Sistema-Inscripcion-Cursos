@@ -4,8 +4,10 @@ const carreraService = require('../services/carrera.service');
 const crearCarrera = async (req, res, next) => {
     try {
         const carrera = await carreraService.crearCarrera(req.body);
+
         res.status(201).json({
-            message: 'Carrera creada exitosamente',
+            success: true,
+            message: 'Registro creado exitosamente',
             data: carrera
         });
     } catch (error) {
@@ -16,7 +18,20 @@ const crearCarrera = async (req, res, next) => {
 const obtenerCarreras = async (req, res, next) => {
     try {
         const carreras = await carreraService.obtenerCarreras();
-        res.json(carreras);
+
+        if (carreras.length === 0) {
+            return res.status(200).json({
+                success: true,
+                message: 'No se encontraron registros',
+                data: []
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Datos obtenidos correctamente',
+            data: carreras
+        });
     } catch (error) {
         next(error);
     }
@@ -28,8 +43,10 @@ const actualizarCarrera = async (req, res, next) => {
             req.params.codigo,
             req.body
         );
-        res.json({
-            message: 'Carrera actualizada correctamente',
+
+        res.status(200).json({
+            success: true,
+            message: 'Registro actualizado correctamente',
             data: carrera
         });
     } catch (error) {
