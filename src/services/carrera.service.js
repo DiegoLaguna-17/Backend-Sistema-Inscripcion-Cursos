@@ -1,43 +1,39 @@
 // services/carrera.service.js
 const Carrera = require('../models/Carrera');
-const  supabase  = require('../config/supabase'); // ejemplo
+const supabase = require('../config/supabase');
 
 const crearCarrera = async (data) => {
     const carrera = new Carrera(data);
 
-    // Validación de modelo
     const validacion = carrera.validar();
     if (!validacion.valido) {
         throw {
-            status: 400,
-            message: 'Errores de validación',
+            status: 422,
+            message: 'Error de validación en los datos enviados',
             errors: validacion.errores
         };
     }
 
-    // Validar duplicados
+    // Verificar duplicados
     const { data: existente } = await supabase
         .from('carrera')
         .select('codigo, nombre')
         .or(`codigo.eq.${carrera.codigo},nombre.eq.${carrera.nombre}`);
 
-    if (existente.length > 0) {
+    if (existente && existente.length > 0) {
         throw {
             status: 409,
-            message: 'Ya existe una carrera con el mismo código o nombre'
+            message: 'El registro ya existe en el sistema'
         };
     }
 
-    // Insertar
     const { data: creada, error } = await supabase
         .from('carrera')
         .insert(carrera.toDatabase())
         .select()
         .single();
 
-    if (error) {
-        throw error;
-    }
+    if (error) throw error;
 
     return creada;
 };
@@ -57,9 +53,23 @@ const actualizarCarrera = async (codigo, data) => {
     const validacion = carrera.validar();
     if (!validacion.valido) {
         throw {
-            status: 400,
-            message: 'Errores de validación',
+            status: 422,
+            message: 'Datos inválidos para la actualización',
             errors: validacion.errores
+        };
+    }
+
+    // Verificar existencia
+    const { data: existente } = await supabase
+        .from('carrera')
+        .select('*')
+        .eq('codigo', codigo)
+        .single();
+
+    if (!existente) {
+        throw {
+            status: 404,
+            message: 'No se puede actualizar: el registro no existe'
         };
     }
 
@@ -71,6 +81,7 @@ const actualizarCarrera = async (codigo, data) => {
         .single();
 
     if (error) throw error;
+
     return actualizada;
 };
 
