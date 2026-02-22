@@ -1,6 +1,7 @@
 const express = require('express');
 const estudianteRoutes = require('./estudiante.routes');
 const docenteRoutes = require('./docentes.routes');
+const cursoRoutes = require("./curso.routes");
 const administradorController = require('../controllers/administrador.controller');
 const authController = require('../controllers/auth.controller');
 const authMiddleware = require('../middlewares/auth.middleware');
@@ -18,6 +19,9 @@ router.use('/estudiantes', estudianteRoutes);
 
 // RUTAS PARA DOCENTES
 router.use('/docentes', docenteRoutes);
+
+// RUTAS PARA CURSOS
+router.use("/cursos", cursoRoutes);
 
 // RUTAS PARA ADMINISTRADORES
 router.post(
