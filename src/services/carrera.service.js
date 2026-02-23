@@ -85,8 +85,51 @@ const actualizarCarrera = async (codigo, data) => {
     return actualizada;
 };
 
+const obtenerCarreraPorCodigo = async (codigo) => {
+    //Buscar carrera + materias relacionadas
+    const { data, error} = await supabase
+        .from('carrera')
+        .select(`
+            codigo,
+            nombre,
+            descripcion,
+            duracion,
+            materias: materia (
+                id_materia,
+                usuario_ci,
+                carrera_codigo,
+                nombre,
+                tipo,
+                cupo,
+                dia,
+                hora_inicio,
+                hora_fin,
+                fecha_inicio,
+                fecha_fin,
+                monto,
+                aula_id_aula,
+                aula:aula_id_aula ( id_aula, nombre )
+            )
+        `)
+        .eq('codigo', codigo)
+        .single();
+    if (error && error.code === 'PRRST116'){
+        throw {
+          status: 404,
+        message: 'No se encontró la carrera solicitada'  
+        };
+    }
+    
+    if (error) {
+        throw error;
+    }
+
+    return data;
+};
+
 module.exports = {
     crearCarrera,
     obtenerCarreras,
-    actualizarCarrera
+    actualizarCarrera,
+    obtenerCarreraPorCodigo
 };

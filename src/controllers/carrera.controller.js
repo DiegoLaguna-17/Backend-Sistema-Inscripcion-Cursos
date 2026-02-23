@@ -54,8 +54,26 @@ const actualizarCarrera = async (req, res, next) => {
     }
 };
 
+const obtenerCarreraPorCodigo = async (res, res, next) => {
+    try {
+        const { codigo } = req.params;
+
+        const carrera = await carreraService.obtenerCarreraPorCodigo(codigo)
+
+        res.status(200).json({
+            success: true,
+            message: 'Datos obtenidos correctamente',
+            data: carrera
+        });
+        
+    } catch (error) {
+        next (error);
+    }
+};
+
 module.exports = {
     crearCarrera,
     obtenerCarreras,
-    actualizarCarrera
+    actualizarCarrera,
+    obtenerCarreraPorCodigo
 };

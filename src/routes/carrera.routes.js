@@ -9,6 +9,13 @@ const {
 
 const router = Router();
 
+router.get(
+    '/:codigo',
+    verificarAutenticacion,
+    verificarPermiso('crear carreras'),
+    carreraController.obtenerCarreraPorCodigo
+);
+
 router.post(
     '/',
     verificarAutenticacion,
