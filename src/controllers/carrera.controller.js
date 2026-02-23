@@ -54,7 +54,7 @@ const actualizarCarrera = async (req, res, next) => {
     }
 };
 
-const obtenerCarreraPorCodigo = async (res, res, next) => {
+const obtenerCarreraPorCodigo = async (req, res, next) => {
     try {
         const { codigo } = req.params;
 
@@ -65,7 +65,7 @@ const obtenerCarreraPorCodigo = async (res, res, next) => {
             message: 'Datos obtenidos correctamente',
             data: carrera
         });
-        
+
     } catch (error) {
         next (error);
     }
