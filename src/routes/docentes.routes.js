@@ -4,6 +4,7 @@ const docenteController = require("../controllers/docente.controller");
 const {
     verificarAutenticacion,
     verificarPermiso,
+    verificarRol,
 } = require("../middlewares/auth.middleware");
 
 const router = Router();
@@ -36,7 +37,7 @@ router.delete(
 router.get(
     "/",
     verificarAutenticacion,
-    verificarPermiso("registro de usuarios"),
+    verificarRol([1, 4]),
     docenteController.obtenerDocentes
 );
 
