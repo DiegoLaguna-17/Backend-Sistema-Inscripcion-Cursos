@@ -1,3 +1,4 @@
+// services/curso.service.js
 const supabase = require("../config/supabase");
 
 // Campos a seleccionar en consultas de curso (incluye joins)
@@ -34,56 +35,72 @@ function validarFecha(f) {
     return typeof f === "string" && /^\d{4}-\d{2}-\d{2}$/.test(f);
 }
 
+// Opcional (recomendado): validar que el código sea tipo SIS-111
+function validarCodigoMateria(c) {
+    return typeof c === "string" && /^[A-Z]{2,6}-\d{1,6}$/i.test(c.trim());
+}
+
 async function carreraExiste(codigo) {
-const { data, error } = await supabase
-    .from("carrera")
-    .select("codigo")
-    .eq("codigo", codigo)
-    .maybeSingle();
+    const { data, error } = await supabase
+        .from("carrera")
+        .select("codigo")
+        .eq("codigo", codigo)
+        .maybeSingle();
     if (error) throw error;
     return !!data;
 }
 
 async function aulaExiste(id) {
-const { data, error } = await supabase
-    .from("aula")
-    .select("id_aula")
-    .eq("id_aula", Number(id))
-    .maybeSingle();
+    const { data, error } = await supabase
+        .from("aula")
+        .select("id_aula")
+        .eq("id_aula", Number(id))
+        .maybeSingle();
     if (error) throw error;
     return !!data;
 }
 
 async function usuarioExiste(ci) {
-const { data, error } = await supabase
-    .from("usuario")
-    .select("ci")
-    .eq("ci", String(ci))
-    .maybeSingle();
+    const { data, error } = await supabase
+        .from("usuario")
+        .select("ci")
+        .eq("ci", String(ci))
+        .maybeSingle();
+    if (error) throw error;
+    return !!data;
+}
+
+async function existeCursoPorId(id_materia) {
+    const { data, error } = await supabase
+        .from("materia")
+        .select("id_materia")
+        .eq("id_materia", String(id_materia))
+        .maybeSingle();
     if (error) throw error;
     return !!data;
 }
 
 async function existeCursoMismoNombreEnCarrera(nombre, carrera_codigo, exceptId = null) {
-let q = supabase
-    .from("materia")
-    .select("id_materia")
-    .eq("carrera_codigo", carrera_codigo)
-    .ilike("nombre", nombre);
+    let q = supabase
+        .from("materia")
+        .select("id_materia")
+        .eq("carrera_codigo", carrera_codigo)
+        .ilike("nombre", nombre);
 
-    if (exceptId !== null) q = q.neq("id_materia", Number(exceptId));
+    // ✅ id_materia ahora es TEXT
+    if (exceptId !== null) q = q.neq("id_materia", String(exceptId));
 
     const { data, error } = await q.maybeSingle();
     if (error) throw error;
     return !!data;
-    }
+}
 
 async function getCursoById(id) {
-const { data, error } = await supabase
-    .from("materia")
-    .select(SELECT_CURSO)
-    .eq("id_materia", Number(id))
-    .maybeSingle();
+    const { data, error } = await supabase
+        .from("materia")
+        .select(SELECT_CURSO)
+        .eq("id_materia", String(id)) // ✅ TEXT
+        .maybeSingle();
 
     if (error) throw error;
     return data;
@@ -91,97 +108,108 @@ const { data, error } = await supabase
 
 // Crear curso por carrera
 async function crearCurso(payload) {
-const required = [
-    "usuario_ci",
-    "carrera_codigo",
-    "nombre",
-    "tipo",
-    "cupo",
-    "dia",
-    "hora_inicio",
-    "hora_fin",
-    "fecha_inicio",
-    "fecha_fin",
-    "monto",
-    "aula_id_aula",
-];
+    const required = [
+        "id_materia",      // ✅ ahora es requerido (ya no autoincremental)
+        "usuario_ci",
+        "carrera_codigo",
+        "nombre",
+        "tipo",
+        "cupo",
+        "dia",
+        "hora_inicio",
+        "hora_fin",
+        "fecha_inicio",
+        "fecha_fin",
+        "monto",
+        "aula_id_aula",
+    ];
 
-const faltantes = required.filter(
-    (k) => payload[k] === undefined || payload[k] === null || payload[k] === ""
-);
+    const faltantes = required.filter(
+        (k) => payload[k] === undefined || payload[k] === null || payload[k] === ""
+    );
 
-if (faltantes.length) {
-    throw makeError(400, "Faltan campos requeridos", { campos_faltantes: faltantes });
-}
+    if (faltantes.length) {
+        throw makeError(400, "Faltan campos requeridos", { campos_faltantes: faltantes });
+    }
 
-  // Validaciones de formato 
-const erroresValidacion = [];
+    // Validaciones de formato
+    const erroresValidacion = [];
 
-if (!Number.isInteger(Number(payload.cupo)) || Number(payload.cupo) <= 0) {
-    erroresValidacion.push("cupo debe ser un entero > 0");
-}
+    if (!validarCodigoMateria(payload.id_materia)) {
+        erroresValidacion.push("id_materia debe tener formato tipo SIS-111");
+    }
 
-if (Number.isNaN(Number(payload.monto)) || Number(payload.monto) < 0) {
-    erroresValidacion.push("monto debe ser un número válido (>= 0)");
-}
+    if (!Number.isInteger(Number(payload.cupo)) || Number(payload.cupo) <= 0) {
+        erroresValidacion.push("cupo debe ser un entero > 0");
+    }
 
-if (!validarHora(payload.hora_inicio) || !validarHora(payload.hora_fin)) {
-    erroresValidacion.push("hora_inicio y hora_fin deben ser HH:MM o HH:MM:SS");
-}
+    if (Number.isNaN(Number(payload.monto)) || Number(payload.monto) < 0) {
+        erroresValidacion.push("monto debe ser un número válido (>= 0)");
+    }
 
-if (!validarFecha(payload.fecha_inicio) || !validarFecha(payload.fecha_fin)) {
-    erroresValidacion.push("fecha_inicio y fecha_fin deben ser YYYY-MM-DD");
-}
+    if (!validarHora(payload.hora_inicio) || !validarHora(payload.hora_fin)) {
+        erroresValidacion.push("hora_inicio y hora_fin deben ser HH:MM o HH:MM:SS");
+    }
 
-if (erroresValidacion.length) {
-    throw makeError(422, "Error de validación en los datos enviados", { errores: erroresValidacion });
-}
+    if (!validarFecha(payload.fecha_inicio) || !validarFecha(payload.fecha_fin)) {
+        erroresValidacion.push("fecha_inicio y fecha_fin deben ser YYYY-MM-DD");
+    }
 
-  // Validaciones de llaves foraneas
-if (!(await carreraExiste(payload.carrera_codigo))) {
-    throw makeError(422, "Error de validación en los datos enviados", { errores: ["carrera_codigo inválido (no existe)"] });
-}
-if (!(await aulaExiste(payload.aula_id_aula))) {
-    throw makeError(422, "Error de validación en los datos enviados", { errores: ["aula_id_aula inválido (no existe)"] });
-}
-if (!(await usuarioExiste(payload.usuario_ci))) {
-    throw makeError(422, "Error de validación en los datos enviados", { errores: ["usuario_ci inválido (no existe)"] });
-}
+    if (erroresValidacion.length) {
+        throw makeError(422, "Error de validación en los datos enviados", { errores: erroresValidacion });
+    }
 
-  // Duplicado (mismo nombre dentro de misma carrera)
-if (await existeCursoMismoNombreEnCarrera(payload.nombre, payload.carrera_codigo)) {
-    throw makeError(409, "El registro ya existe en el sistema");
-}
+    // Validaciones de llaves foraneas
+    if (!(await carreraExiste(payload.carrera_codigo))) {
+        throw makeError(422, "Error de validación en los datos enviados", { errores: ["carrera_codigo inválido (no existe)"] });
+    }
+    if (!(await aulaExiste(payload.aula_id_aula))) {
+        throw makeError(422, "Error de validación en los datos enviados", { errores: ["aula_id_aula inválido (no existe)"] });
+    }
+    if (!(await usuarioExiste(payload.usuario_ci))) {
+        throw makeError(422, "Error de validación en los datos enviados", { errores: ["usuario_ci inválido (no existe)"] });
+    }
 
-const { data, error } = await supabase
-    .from("materia")
-    .insert([{
-        usuario_ci: String(payload.usuario_ci),
-        carrera_codigo: payload.carrera_codigo,
-        nombre: payload.nombre,
-        tipo: payload.tipo,
-        cupo: Number(payload.cupo),
-        dia: payload.dia,
-        hora_inicio: payload.hora_inicio,
-        hora_fin: payload.hora_fin,
-        fecha_inicio: payload.fecha_inicio,
-        fecha_fin: payload.fecha_fin,
-        monto: Number(payload.monto),
-        aula_id_aula: Number(payload.aula_id_aula),
-    }])
-    .select(SELECT_CURSO)
-    .single();
+    // ✅ Duplicado por PK id_materia (texto)
+    if (await existeCursoPorId(payload.id_materia)) {
+        throw makeError(409, "El registro ya existe en el sistema");
+    }
 
-if (error) throw error;
+    // Duplicado (mismo nombre dentro de misma carrera)
+    if (await existeCursoMismoNombreEnCarrera(payload.nombre, payload.carrera_codigo)) {
+        throw makeError(409, "El registro ya existe en el sistema");
+    }
+
+    const { data, error } = await supabase
+        .from("materia")
+        .insert([{
+            id_materia: String(payload.id_materia).trim(), // ✅ TEXT
+            usuario_ci: String(payload.usuario_ci),
+            carrera_codigo: payload.carrera_codigo,
+            nombre: payload.nombre,
+            tipo: payload.tipo,
+            cupo: Number(payload.cupo),
+            dia: payload.dia,
+            hora_inicio: payload.hora_inicio,
+            hora_fin: payload.hora_fin,
+            fecha_inicio: payload.fecha_inicio,
+            fecha_fin: payload.fecha_fin,
+            monto: Number(payload.monto),
+            aula_id_aula: Number(payload.aula_id_aula),
+        }])
+        .select(SELECT_CURSO)
+        .single();
+
+    if (error) throw error;
     return data;
 }
 
-// Obtener curso por codigo de carrera  
+// Obtener cursos (opcional filtrado por carrera)
 async function listarCursos({ carrera_codigo } = {}) {
     let q = supabase
         .from("materia")
         .select(SELECT_CURSO)
-        .order("id_materia", { ascending: false });
+        .order("id_materia", { ascending: false }); // ahora ordena texto
 
     if (carrera_codigo) q = q.eq("carrera_codigo", carrera_codigo);
 
@@ -190,17 +218,22 @@ async function listarCursos({ carrera_codigo } = {}) {
     return data || [];
 }
 
-// Obtener curso por id
+// Obtener curso por id (texto)
 async function obtenerCurso(id) {
     const curso = await getCursoById(id);
     if (!curso) throw makeError(404, "No se encontró el registro");
     return curso;
 }
 
-// Modificar curso
+// Modificar curso (id_materia NO se modifica)
 async function actualizarCurso(id, payload) {
     const actual = await getCursoById(id);
     if (!actual) throw makeError(404, "No se puede actualizar: el registro no existe");
+
+    // ✅ bloquear cambio de PK
+    if (payload.id_materia !== undefined && String(payload.id_materia) !== String(id)) {
+        throw makeError(403, "No se puede modificar este campo", { campo: "id_materia" });
+    }
 
     const allowed = [
         "usuario_ci",
@@ -217,10 +250,10 @@ async function actualizarCurso(id, payload) {
         "aula_id_aula",
     ];
 
-const updates = {};
+    const updates = {};
     for (const k of allowed) {
-    if (payload[k] !== undefined) updates[k] = payload[k];
-}
+        if (payload[k] !== undefined) updates[k] = payload[k];
+    }
 
     // sin cambios
     if (Object.keys(updates).length === 0) {
@@ -232,17 +265,17 @@ const updates = {};
 
     if (updates.cupo !== undefined) {
         if (!Number.isInteger(Number(updates.cupo)) || Number(updates.cupo) <= 0) {
-        erroresValidacion.push("cupo debe ser un entero > 0");
+            erroresValidacion.push("cupo debe ser un entero > 0");
         } else {
-        updates.cupo = Number(updates.cupo);
+            updates.cupo = Number(updates.cupo);
         }
     }
 
     if (updates.monto !== undefined) {
         if (Number.isNaN(Number(updates.monto)) || Number(updates.monto) < 0) {
-        erroresValidacion.push("monto debe ser un número válido (>= 0)");
+            erroresValidacion.push("monto debe ser un número válido (>= 0)");
         } else {
-        updates.monto = Number(updates.monto);
+            updates.monto = Number(updates.monto);
         }
     }
 
@@ -263,21 +296,21 @@ const updates = {};
     // FK checks si cambian
     if (updates.carrera_codigo !== undefined) {
         if (!(await carreraExiste(updates.carrera_codigo))) {
-        erroresValidacion.push("carrera_codigo inválido (no existe)");
+            erroresValidacion.push("carrera_codigo inválido (no existe)");
         }
     }
     if (updates.aula_id_aula !== undefined) {
         if (!(await aulaExiste(updates.aula_id_aula))) {
-        erroresValidacion.push("aula_id_aula inválido (no existe)");
+            erroresValidacion.push("aula_id_aula inválido (no existe)");
         } else {
-        updates.aula_id_aula = Number(updates.aula_id_aula);
+            updates.aula_id_aula = Number(updates.aula_id_aula);
         }
     }
     if (updates.usuario_ci !== undefined) {
         if (!(await usuarioExiste(updates.usuario_ci))) {
-        erroresValidacion.push("usuario_ci inválido (no existe)");
+            erroresValidacion.push("usuario_ci inválido (no existe)");
         } else {
-        updates.usuario_ci = String(updates.usuario_ci);
+            updates.usuario_ci = String(updates.usuario_ci);
         }
     }
 
@@ -289,34 +322,34 @@ const updates = {};
     const carreraFinal = updates.carrera_codigo ?? actual.carrera_codigo;
     const nombreFinal = updates.nombre ?? actual.nombre;
 
-    if (await existeCursoMismoNombreEnCarrera(nombreFinal, carreraFinal, Number(id))) {
+    if (await existeCursoMismoNombreEnCarrera(nombreFinal, carreraFinal, String(id))) {
         throw makeError(409, "Los datos a actualizar ya existen en otro registro");
     }
 
     const { data, error } = await supabase
         .from("materia")
         .update(updates)
-        .eq("id_materia", Number(id))
+        .eq("id_materia", String(id)) // ✅ TEXT
         .select(SELECT_CURSO)
         .single();
 
     if (error) throw error;
     return { sinCambios: false, data };
-    }
+}
 
-// Eliminar curso
+// Eliminar curso (id texto)
 async function eliminarCurso(id) {
-const actual = await getCursoById(id);
+    const actual = await getCursoById(id);
     if (!actual) throw makeError(404, "No se puede eliminar: el registro no existe");
 
-const { error } = await supabase
-    .from("materia")
-    .delete()
-    .eq("id_materia", Number(id));
+    const { error } = await supabase
+        .from("materia")
+        .delete()
+        .eq("id_materia", String(id)); // ✅ TEXT
 
     if (error) throw error;
 
-    return { deleted: true, id: Number(id) };
+    return { deleted: true, id: String(id) };
 }
 
 module.exports = {
