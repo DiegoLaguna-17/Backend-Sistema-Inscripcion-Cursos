@@ -126,64 +126,77 @@ const { data, error } = await supabase
     if (error) throw error;
     return !!data;
 }
+async function crear(req, res, next) {
+    try {
+        const payload = req.body;
 
-async function crear(payload) {
-    validarPayloadCrear(payload);
-    await validarFKs(payload);
+        validarPayloadCrear(payload);
+        await validarFKs(payload);
 
-    if (
-        payload.carrera_codigo !== undefined &&
-        payload.carrera_codigo !== null &&
-        payload.carrera_codigo !== ""
-    ) {
-        throw httpError(403, "No se puede modificar este campo", { campo: "carrera_codigo" });
+        if (
+            payload.carrera_codigo !== undefined &&
+            payload.carrera_codigo !== null &&
+            payload.carrera_codigo !== ""
+        ) {
+            throw httpError(403, "No se puede modificar este campo", { campo: "carrera_codigo" });
+        }
+
+        if (await existePorId(payload.id_materia)) {
+            throw httpError(409, "El registro ya existe en el sistema");
+        }
+
+        if (await existeDuplicadoNombreExtra(payload.nombre)) {
+            throw httpError(409, "El registro ya existe en el sistema");
+        }
+
+        const insertData = {
+            id_materia: String(payload.id_materia).trim(),
+            usuario_ci: String(payload.usuario_ci),
+            carrera_codigo: null,
+            nombre: payload.nombre,
+            tipo: "EXTRACURRICULAR",
+            cupo: Number(payload.cupo),
+            dia: payload.dia,
+            hora_inicio: payload.hora_inicio,
+            hora_fin: payload.hora_fin,
+            fecha_inicio: payload.fecha_inicio,
+            fecha_fin: payload.fecha_fin,
+            monto: Number(payload.monto),
+            aula_id_aula: Number(payload.aula_id_aula),
+        };
+
+        const { data, error } = await supabase
+            .from("materia")
+            .insert([insertData])
+            .select(SELECT_CURSO_EXTRA)
+            .single();
+
+        if (error) throw error;
+
+        res.status(201).json(data);
+
+    } catch (error) {
+        next(error);
     }
-
-    if (await existePorId(payload.id_materia)) {
-        throw httpError(409, "El registro ya existe en el sistema");
-    }
-
-    if (await existeDuplicadoNombreExtra(payload.nombre)) {
-        throw httpError(409, "El registro ya existe en el sistema");
-    }
-
-const insertData = {
-    id_materia: String(payload.id_materia).trim(), // ✅ TEXT PK
-    usuario_ci: String(payload.usuario_ci),
-    carrera_codigo: null,
-    nombre: payload.nombre,
-    tipo: "EXTRACURRICULAR",
-    cupo: Number(payload.cupo),
-    dia: payload.dia,
-    hora_inicio: payload.hora_inicio,
-    hora_fin: payload.hora_fin,
-    fecha_inicio: payload.fecha_inicio,
-    fecha_fin: payload.fecha_fin,
-    monto: Number(payload.monto),
-    aula_id_aula: Number(payload.aula_id_aula),
-};
-
-const { data, error } = await supabase
-    .from("materia")
-    .insert([insertData])
-    .select(SELECT_CURSO_EXTRA)
-    .single();
-
-    if (error) throw error;
-    return data;
 }
 
-async function listar() {
-const { data, error } = await supabase
-    .from("materia")
-    .select(SELECT_CURSO_EXTRA)
-    .eq("tipo", "EXTRACURRICULAR")
-    .is("carrera_codigo", null)
-    .order("nombre", { ascending: true });
+async function listar(req, res, next) {
+  try {
+    const { data, error } = await supabase
+      .from("materia")
+      .select(SELECT_CURSO_EXTRA)
+      .eq("tipo", "EXTRACURRICULAR")
+      .is("carrera_codigo", null)
+      .order("nombre", { ascending: true });
 
     if (error) throw error;
-    return data || [];
-    }
+
+    res.json(data || []);
+
+  } catch (error) {
+    next(error);
+  }
+}
 
 async function obtenerPorId(id) {
 const { data, error } = await supabase

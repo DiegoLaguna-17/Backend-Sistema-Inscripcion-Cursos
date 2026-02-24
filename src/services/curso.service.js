@@ -210,7 +210,8 @@ async function listarCursos({ carrera_codigo } = {}) {
     let q = supabase
         .from("materia")
         .select(SELECT_CURSO)
-        .order("id_materia", { ascending: false }); 
+        .order("id_materia", { ascending: false })
+        .not("carrera_codigo", "is", null);
 
     if (carrera_codigo) q = q.eq("carrera_codigo", carrera_codigo);
 
