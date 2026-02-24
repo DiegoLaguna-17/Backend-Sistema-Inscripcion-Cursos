@@ -16,7 +16,6 @@ async function crearCurso(req, res) {
         const status = err.status || 500;
         const message = err.message || "Error interno del servidor";
 
-        // Ajuste de mensajes según tu tabla
         if (status === 409) return fail(res, "El registro ya existe en el sistema", null, 409);
         if (status === 422) return fail(res, "Error de validación en los datos enviados", err.data || null, 422);
         if (status === 400) return fail(res, "Faltan campos requeridos", err.data || null, 400);
