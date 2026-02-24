@@ -60,12 +60,15 @@ async function aulaExiste(id) {
     return !!data;
 }
 
-async function usuarioExiste(ci) {
+async function docenteExiste(ci) {
     const { data, error } = await supabase
         .from("usuario")
-        .select("ci")
+        .select("ci, estado, rol!inner(rol)")
         .eq("ci", String(ci))
+        .eq("estado", true)
+        .eq("rol.rol", "docente")
         .maybeSingle();
+
     if (error) throw error;
     return !!data;
 }
@@ -109,7 +112,7 @@ async function getCursoById(id) {
 // Crear curso por carrera
 async function crearCurso(payload) {
     const required = [
-        "id_materia",      // ✅ ahora es requerido (ya no autoincremental)
+        "id_materia",     
         "usuario_ci",
         "carrera_codigo",
         "nombre",
@@ -166,16 +169,15 @@ async function crearCurso(payload) {
     if (!(await aulaExiste(payload.aula_id_aula))) {
         throw makeError(422, "Error de validación en los datos enviados", { errores: ["aula_id_aula inválido (no existe)"] });
     }
-    if (!(await usuarioExiste(payload.usuario_ci))) {
-        throw makeError(422, "Error de validación en los datos enviados", { errores: ["usuario_ci inválido (no existe)"] });
-    }
-
-    // ✅ Duplicado por PK id_materia (texto)
+        if (!(await docenteExiste(payload.usuario_ci))) {
+        throw makeError(422, "Error de validación en los datos enviados", {
+            errores: ["usuario_ci inválido (docente no existe o está inactivo)"]
+        });
+}
     if (await existeCursoPorId(payload.id_materia)) {
         throw makeError(409, "El registro ya existe en el sistema");
     }
 
-    // Duplicado (mismo nombre dentro de misma carrera)
     if (await existeCursoMismoNombreEnCarrera(payload.nombre, payload.carrera_codigo)) {
         throw makeError(409, "El registro ya existe en el sistema");
     }
@@ -183,7 +185,7 @@ async function crearCurso(payload) {
     const { data, error } = await supabase
         .from("materia")
         .insert([{
-            id_materia: String(payload.id_materia).trim(), // ✅ TEXT
+            id_materia: String(payload.id_materia).trim(), 
             usuario_ci: String(payload.usuario_ci),
             carrera_codigo: payload.carrera_codigo,
             nombre: payload.nombre,
@@ -204,12 +206,11 @@ async function crearCurso(payload) {
     return data;
 }
 
-// Obtener cursos (opcional filtrado por carrera)
 async function listarCursos({ carrera_codigo } = {}) {
     let q = supabase
         .from("materia")
         .select(SELECT_CURSO)
-        .order("id_materia", { ascending: false }); // ahora ordena texto
+        .order("id_materia", { ascending: false }); 
 
     if (carrera_codigo) q = q.eq("carrera_codigo", carrera_codigo);
 
@@ -218,19 +219,18 @@ async function listarCursos({ carrera_codigo } = {}) {
     return data || [];
 }
 
-// Obtener curso por id (texto)
+// Obtener curso por id 
 async function obtenerCurso(id) {
     const curso = await getCursoById(id);
     if (!curso) throw makeError(404, "No se encontró el registro");
     return curso;
 }
 
-// Modificar curso (id_materia NO se modifica)
+// Modificar curso 
 async function actualizarCurso(id, payload) {
     const actual = await getCursoById(id);
     if (!actual) throw makeError(404, "No se puede actualizar: el registro no existe");
 
-    // ✅ bloquear cambio de PK
     if (payload.id_materia !== undefined && String(payload.id_materia) !== String(id)) {
         throw makeError(403, "No se puede modificar este campo", { campo: "id_materia" });
     }
@@ -260,7 +260,7 @@ async function actualizarCurso(id, payload) {
         return { sinCambios: true, data: actual };
     }
 
-    // Validaciones (solo si llegan)
+    // Validaciones 
     const erroresValidacion = [];
 
     if (updates.cupo !== undefined) {
@@ -307,12 +307,12 @@ async function actualizarCurso(id, payload) {
         }
     }
     if (updates.usuario_ci !== undefined) {
-        if (!(await usuarioExiste(updates.usuario_ci))) {
-            erroresValidacion.push("usuario_ci inválido (no existe)");
+        if (!(await docenteExiste(updates.usuario_ci))) {
+            erroresValidacion.push("usuario_ci inválido (docente no existe o está inactivo)");
         } else {
             updates.usuario_ci = String(updates.usuario_ci);
         }
-    }
+        }
 
     if (erroresValidacion.length) {
         throw makeError(422, "Datos inválidos para la actualización", { errores: erroresValidacion });

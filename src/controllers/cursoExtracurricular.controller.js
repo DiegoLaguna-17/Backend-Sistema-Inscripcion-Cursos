@@ -264,7 +264,7 @@ const { data, error } = await supabase
     return data;
 }
 
-async function eliminar(id) {r
+async function eliminar(id) {
     await obtenerPorId(id);
 
 const { error } = await supabase
