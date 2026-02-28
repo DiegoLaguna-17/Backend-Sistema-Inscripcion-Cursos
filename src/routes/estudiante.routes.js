@@ -16,6 +16,13 @@ router.post(
     estudianteController.registrarEstudiante
 );
 
+// Asignar carrera a estudiante cuando se inscriba
+router.put(
+    "/:ci/asignar-carrera",
+    verificarAutenticacion,
+    estudianteController.asignarCarrera
+);
+
 // Modificar estudiante
 router.put(
     "/:ci",

@@ -187,12 +187,6 @@ const updates = {};
     if (payload.fecha_nac !== undefined) updates.fecha_nac = payload.fecha_nac;
     if (payload.direccion !== undefined) updates.direccion = payload.direccion;
 
-  // carrera (acepta carrera_usuario o carrera)
-    if (payload.carrera_usuario !== undefined || payload.carrera !== undefined) {
-    const codigoCarrera = await validateCarreraCodigo(payload.carrera_usuario ?? payload.carrera);
-    updates.carrera_usuario = codigoCarrera; // puede ser null si quieres limpiar
-    }
-
   // cambiar password
     if (payload.contrasenia) {
     updates.contrasenia = await bcrypt.hash(payload.contrasenia, SALT_ROUNDS);
@@ -252,10 +246,47 @@ if (error) throw error;
     return { deleted: true, ci: data.ci, estado: data.estado };
 }
 
+async function assignCarrera(ci, payload, user) {
+    const esMismoEstudiante = user && String(user.ci) === String(ci);
+    const esAdmin = user && String(user.rol_id_rol) === "1"; // por seguridad, string/number
+
+    if (!esMismoEstudiante && !esAdmin) {
+        const err = new Error("No autorizado para asignar carrera");
+        err.status = 403;
+        throw err;
+    }
+
+    const codigo = payload.carrera_usuario;
+
+    if (codigo === undefined || codigo === null || String(codigo).trim() === "") {
+        const err = new Error("Se requiere carrera_usuario (código de carrera)");
+        err.status = 400;
+        throw err;
+    }
+
+    const codigoCarrera = await validateCarreraCodigo(String(codigo).trim());
+    if (!codigoCarrera) {
+        const err = new Error("La carrera no existe (código inválido)");
+        err.status = 400;
+        throw err;
+    }
+
+    const { data, error } = await supabase
+        .from("usuario")
+        .update({ carrera_usuario: codigoCarrera })
+        .eq("ci", String(ci))
+        .select(SELECT_ESTUDIANTE_CON_CARRERA)
+        .single();
+
+    if (error) throw error;
+    return data;
+    }
+
 module.exports = {
     createStudent,
     listStudents,
     getStudentByCI,
     updateStudent,
     deleteStudent,
+    assignCarrera,
 };

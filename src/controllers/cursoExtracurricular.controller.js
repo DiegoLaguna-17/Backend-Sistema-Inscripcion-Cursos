@@ -181,21 +181,21 @@ async function crear(req, res, next) {
 }
 
 async function listar(req, res, next) {
-  try {
+    try {
     const { data, error } = await supabase
-      .from("materia")
-      .select(SELECT_CURSO_EXTRA)
-      .eq("tipo", "EXTRACURRICULAR")
-      .is("carrera_codigo", null)
-      .order("nombre", { ascending: true });
+        .from("materia")
+        .select(SELECT_CURSO_EXTRA)
+        .eq("tipo", "EXTRACURRICULAR")
+        .is("carrera_codigo", null)
+        .order("nombre", { ascending: true });
 
     if (error) throw error;
 
     res.json(data || []);
 
-  } catch (error) {
-    next(error);
-  }
+    } catch (error) {
+        next(error);
+    }
 }
 
 async function obtenerPorId(id) {

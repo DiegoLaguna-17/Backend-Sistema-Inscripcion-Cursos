@@ -45,10 +45,20 @@ async function eliminarEstudiante(req, res, next) {
     }
 }
 
+async function asignarCarrera(req, res, next) {
+    try {
+        const updated = await service.assignCarrera(req.params.ci, req.body, req.user);
+        res.json({ message: "Carrera asignada", student: updated });
+    } catch (err) {
+        next(err);
+    }
+}
+
 module.exports = {
     registrarEstudiante,
     listarEstudiantes,
     obtenerEstudiantePorCI,
     actualizarEstudiante,
     eliminarEstudiante,
+    asignarCarrera,
 };
