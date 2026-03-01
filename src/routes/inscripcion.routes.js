@@ -25,13 +25,29 @@ router.get(
     controller.obtenerDetalleMateria
 );
 
+router.get(
+    "/extracurriculares",
+    verificarAutenticacion,
+    verificarRol([3]),
+    verificarPermiso("inscripcion a materias"),
+    controller.listarExtracurriculares
+);
+
+router.get(
+    "/extracurriculares/:id",
+    verificarAutenticacion,
+    verificarRol([3]),
+    verificarPermiso("inscripcion a materias"),
+    controller.obtenerDetalleExtracurricular
+);
+
 router.post(
     "/",
     verificarAutenticacion,
     verificarRol([3]),
     verificarPermiso("inscripcion a materias"),
     controller.crearInscripcion
-    );
+);
 
 router.get(
     "/mis-inscripciones",
