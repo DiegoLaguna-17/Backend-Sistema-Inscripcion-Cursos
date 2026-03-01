@@ -194,15 +194,55 @@ async function listarMateriasDisponibles(ci_estudiante, opts = {}) {
             carrera:carrera_codigo ( codigo, nombre ),
             docente:usuario_ci ( ci, nombre )
         `)
+        .eq("carrera_codigo", user.carrera_usuario)
         .order("nombre", { ascending: true });
 
-    const incluirExtra = !!opts.incluir_extracurriculares;
+    if (opts.q) q = q.ilike("nombre", `%${opts.q}%`);
+    if (opts.dia) q = q.eq("dia", opts.dia);
 
-    if (incluirExtra) {
-        q = q.or(`carrera_codigo.eq.${user.carrera_usuario},and(tipo.eq.EXTRACURRICULAR,carrera_codigo.is.null)`);
-    } else {
-        q = q.eq("carrera_codigo", user.carrera_usuario);
+    const { data, error } = await q;
+    if (error) throw error;
+
+    let materias = data || [];
+
+    if (opts.solo_disponibles) {
+        const filtradas = [];
+        for (const m of materias) {
+            const okCupo = await cupoDisponible(m);
+            if (okCupo) filtradas.push(m);
+        }
+        materias = filtradas;
     }
+
+    const ids = materias.map((m) => m.id_materia);
+    const inscritosMap = await inscritosPorMaterias(ids);
+
+    return materias.map((m) => mapMateriaLikeUI(m, inscritosMap[m.id_materia] || 0));
+}
+
+async function listarExtracurriculares(opts = {}) {
+    let q = supabase
+        .from("materia")
+        .select(`
+            id_materia,
+            usuario_ci,
+            carrera_codigo,
+            nombre,
+            tipo,
+            cupo,
+            dia,
+            hora_inicio,
+            hora_fin,
+            fecha_inicio,
+            fecha_fin,
+            monto,
+            aula_id_aula,
+            aula:aula_id_aula ( id_aula, nombre ),
+            docente:usuario_ci ( ci, nombre )
+        `)
+        .eq("tipo", "EXTRACURRICULAR")
+        .is("carrera_codigo", null)
+        .order("nombre", { ascending: true });
 
     if (opts.q) q = q.ilike("nombre", `%${opts.q}%`);
     if (opts.dia) q = q.eq("dia", opts.dia);
@@ -237,10 +277,8 @@ async function obtenerDetalleMateria(ci_estudiante, id_materia) {
     const materia = await materiaExiste(id_materia);
     if (!materia) throw makeError(404, "No se encontraron registros");
 
-    const esExtra = materia.tipo === "EXTRACURRICULAR" && materia.carrera_codigo === null;
     const esDeSuCarrera = String(materia.carrera_codigo) === String(user.carrera_usuario);
-
-    if (!esExtra && !esDeSuCarrera) {
+    if (!esDeSuCarrera) {
         throw makeError(403, "No puedes ver esta materia (no pertenece a tu carrera).");
     }
 
@@ -262,9 +300,7 @@ async function obtenerDetalleMateria(ci_estudiante, id_materia) {
             cumple,
         });
 
-        if (!cumple) {
-            motivos.push(`No cumples el requisito: ${reqId}`);
-        }
+        if (!cumple) motivos.push(`No cumples el requisito: ${reqId}`);
     }
 
     const okCupo = await cupoDisponible(materia);
@@ -276,6 +312,29 @@ async function obtenerDetalleMateria(ci_estudiante, id_materia) {
     return {
         materia: mapMateriaLikeUI(materia, inscritos),
         requisitos,
+        puede_inscribirse: motivos.length === 0,
+        motivos_bloqueo: motivos,
+    };
+}
+
+async function obtenerDetalleExtracurricular(id_materia) {
+    const materia = await materiaExiste(id_materia);
+    if (!materia) throw makeError(404, "No se encontraron registros");
+
+    const esExtra = materia.tipo === "EXTRACURRICULAR" && materia.carrera_codigo === null;
+    if (!esExtra) throw makeError(403, "La materia solicitada no es extracurricular.");
+
+    const inscritosMap = await inscritosPorMaterias([materia.id_materia]);
+    const inscritos = inscritosMap[materia.id_materia] || 0;
+
+    const okCupo = await cupoDisponible(materia);
+
+    const motivos = [];
+    if (!okCupo) motivos.push("No hay cupos disponibles");
+
+    return {
+        materia: mapMateriaLikeUI(materia, inscritos),
+        requisitos: [],
         puede_inscribirse: motivos.length === 0,
         motivos_bloqueo: motivos,
     };
@@ -458,6 +517,8 @@ async function misInscripciones(ci_estudiante) {
 module.exports = {
     listarMateriasDisponibles,
     obtenerDetalleMateria,
+    listarExtracurriculares,
+    obtenerDetalleExtracurricular,
     crearInscripcion,
     misInscripciones,
 };
