@@ -77,15 +77,22 @@ const {
 } = payload;
 
     if (!ci || !nombre || !correo || !contrasenia) {
-    const err = new Error("Campos obligatorios: ci, nombre, correo, contrasenia");
+    const camposFaltantes = [];
+    if (!ci) camposFaltantes.push("ci");
+    if (!nombre) camposFaltantes.push("nombre");
+    if (!correo) camposFaltantes.push("correo");
+    if (!contrasenia) camposFaltantes.push("contrasenia");
+    
+    const err = new Error("Faltan campos requeridos");
     err.status = 400;
+    err.data = { camposFaltantes };
     throw err;
 }
 
   // CI duplicado
 const existingCI = await findUserByCI(ci);
 if (existingCI) {
-    const err = new Error("Ya existe un usuario con ese CI");
+    const err = new Error("El registro ya existe en el sistema");
     err.status = 409;
     throw err;
 }
@@ -99,7 +106,7 @@ const { data: existingEmail, error: errEmail } = await supabase
 
 if (errEmail) throw errEmail;
 if (existingEmail) {
-    const err = new Error("Ya existe un usuario con ese correo");
+    const err = new Error("El registro ya existe en el sistema");
     err.status = 409;
     throw err;
 }
@@ -163,7 +170,7 @@ const { data, error } = await supabase
 
     if (error) throw error;
     if (!data) {
-    const err = new Error("Estudiante no encontrado");
+    const err = new Error("Registro no encontrado");
     err.status = 404;
     throw err;
 }
@@ -174,7 +181,7 @@ const { data, error } = await supabase
 async function updateStudent(ci, payload) {
 const existing = await findUserByCI(ci);
 if (!existing || existing.estado === false) {
-    const err = new Error("Estudiante no encontrado");
+    const err = new Error("Registro no encontrado");
     err.status = 404;
     throw err;
 }
@@ -193,8 +200,9 @@ const updates = {};
     }
 
     if (Object.keys(updates).length === 0) {
-    const err = new Error("No enviaste campos para actualizar");
+    const err = new Error("Faltan campos requeridos");
     err.status = 400;
+    err.data = { mensaje: "No se enviaron campos para actualizar" };
     throw err;
 }
 
@@ -208,7 +216,7 @@ if (updates.correo && updates.correo !== existing.correo) {
 
     if (emailErr) throw emailErr;
     if (emailTaken) {
-        const err = new Error("Ese correo ya está en uso");
+        const err = new Error("El registro ya existe en el sistema");
         err.status = 409;
         throw err;
     }
@@ -230,7 +238,7 @@ async function deleteStudent(ci) {
 const existing = await findUserByCI(ci);
 
 if (!existing || existing.estado === false) {
-    const err = new Error("Estudiante no encontrado");
+    const err = new Error("Registro no encontrado");
     err.status = 404;
     throw err;
 }
@@ -251,7 +259,7 @@ async function assignCarrera(ci, payload, user) {
     const esAdmin = user && String(user.rol_id_rol) === "1"; // por seguridad, string/number
 
     if (!esMismoEstudiante && !esAdmin) {
-        const err = new Error("No autorizado para asignar carrera");
+        const err = new Error("No autorizado");
         err.status = 403;
         throw err;
     }
@@ -259,15 +267,17 @@ async function assignCarrera(ci, payload, user) {
     const codigo = payload.carrera_usuario;
 
     if (codigo === undefined || codigo === null || String(codigo).trim() === "") {
-        const err = new Error("Se requiere carrera_usuario (código de carrera)");
+        const err = new Error("Faltan campos requeridos");
         err.status = 400;
+        err.data = { camposFaltantes: ["carrera_usuario"] };
         throw err;
     }
 
     const codigoCarrera = await validateCarreraCodigo(String(codigo).trim());
     if (!codigoCarrera) {
-        const err = new Error("La carrera no existe (código inválido)");
+        const err = new Error("Formato de datos inválido");
         err.status = 400;
+        err.data = { erroresDeFormato: ["El código de carrera no existe"] };
         throw err;
     }
 
@@ -282,6 +292,53 @@ async function assignCarrera(ci, payload, user) {
     return data;
     }
 
+// Inscribirse a una carrera (estudiante se inscribe a sí mismo)
+async function inscribirseCarrera(ci, payload) {
+    // Verificar que el usuario existe y es estudiante
+    const existing = await findUserByCI(ci);
+    if (!existing || existing.estado === false) {
+        const err = new Error("Registro no encontrado");
+        err.status = 404;
+        throw err;
+    }
+
+    // Verificar que ya no tenga una carrera asignada (opcional - ajustar según lógica)
+    if (existing.carrera_usuario) {
+        const err = new Error("El registro ya existe en el sistema");
+        err.status = 409;
+        throw err;
+    }
+
+    const codigo = payload.codigo_carrera || payload.carrera_usuario;
+
+    if (!codigo || String(codigo).trim() === "") {
+        const err = new Error("Faltan campos requeridos");
+        err.status = 400;
+        err.data = { camposFaltantes: ["codigo_carrera"] };
+        throw err;
+    }
+
+    // Validar que la carrera existe
+    const codigoCarrera = await validateCarreraCodigo(String(codigo).trim());
+    if (!codigoCarrera) {
+        const err = new Error("Formato de datos inválido");
+        err.status = 400;
+        err.data = { erroresDeFormato: ["El código de carrera no existe"] };
+        throw err;
+    }
+
+    // Actualizar carrera del estudiante
+    const { data, error } = await supabase
+        .from("usuario")
+        .update({ carrera_usuario: codigoCarrera })
+        .eq("ci", String(ci))
+        .select(SELECT_ESTUDIANTE_CON_CARRERA)
+        .single();
+
+    if (error) throw error;
+    return data;
+}
+
 module.exports = {
     createStudent,
     listStudents,
@@ -289,4 +346,5 @@ module.exports = {
     updateStudent,
     deleteStudent,
     assignCarrera,
+    inscribirseCarrera,
 };

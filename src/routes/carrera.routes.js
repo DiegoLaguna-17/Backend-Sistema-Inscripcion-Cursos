@@ -9,13 +9,33 @@ const {
 
 const router = Router();
 
+// ===== Rutas públicas (solo requieren autenticación) =====
+// Para estudiantes que quieren ver carreras disponibles
+
+// Listar todas las carreras disponibles (para las cards)
 router.get(
-    '/:codigo',
+    '/disponibles',
     verificarAutenticacion,
-    verificarPermiso('crear carreras'),
-    carreraController.obtenerCarreraPorCodigo
+    carreraController.obtenerCarreras
 );
 
+// Ver detalles de una carrera específica (para "Ver más") - SIN MATERIAS
+router.get(
+    '/disponibles/:codigo',
+    verificarAutenticacion,
+    carreraController.obtenerCarreraSinMaterias
+);
+
+// Ver materias de una carrera (para botón "Ver materias")
+router.get(
+    '/disponibles/:codigo/materias',
+    verificarAutenticacion,
+    carreraController.obtenerMateriasPorCarrera
+);
+
+// ===== Rutas administrativas (requieren permisos) =====
+
+// Crear carrera (solo admin)
 router.post(
     '/',
     verificarAutenticacion,
@@ -23,6 +43,7 @@ router.post(
     carreraController.crearCarrera
 );
 
+// Listar carreras (admin)
 router.get(
     '/',
     verificarAutenticacion,
@@ -30,11 +51,20 @@ router.get(
     carreraController.obtenerCarreras
 );
 
+// Actualizar carrera (admin)
 router.put(
     '/:codigo',
     verificarAutenticacion,
     verificarPermiso("crear carreras"),
     carreraController.actualizarCarrera
+);
+
+// Obtener carrera por código (admin)
+router.get(
+    '/:codigo',
+    verificarAutenticacion,
+    verificarPermiso('crear carreras'),
+    carreraController.obtenerCarreraPorCodigo
 );
 
 module.exports = router;

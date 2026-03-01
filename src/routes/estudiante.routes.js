@@ -8,6 +8,17 @@ const {
 
 const router = Router();
 
+// ===== Rutas públicas (solo requieren autenticación) =====
+
+// Inscribirse a una carrera (estudiante se inscribe a sí mismo)
+router.post(
+    "/inscribirse",
+    verificarAutenticacion,
+    estudianteController.inscribirseCarrera
+);
+
+// ===== Rutas administrativas =====
+
 // Crear estudiante
 router.post(
     "/",
