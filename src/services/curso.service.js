@@ -17,7 +17,11 @@ const SELECT_CURSO = `
     monto,
     aula_id_aula,
     aula:aula_id_aula ( id_aula, nombre ),
-    carrera:carrera_codigo ( codigo, nombre, descripcion, duracion )
+    carrera:carrera_codigo ( codigo, nombre, descripcion, duracion ),
+    materia_requisito!materia_id_materia ( 
+        requisito_id_materia,
+        requisito:requisito_id_materia ( id_materia, nombre )
+    )
 `;
 
 function makeError(status, message, data = null) {
@@ -114,7 +118,7 @@ async function crearCurso(payload) {
     const required = [
         "id_materia",     
         "usuario_ci",
-        "carrera_codigo",
+        // carrera_codigo es condicional (requerido si tipo='Obligatoria', null si tipo='Extracurricular')
         "nombre",
         "tipo",
         "cupo",
@@ -137,6 +141,23 @@ async function crearCurso(payload) {
 
     // Validaciones de formato
     const erroresValidacion = [];
+
+    // Validar tipo
+    const tiposPermitidos = ["Obligatoria", "Extracurricular"];
+    if (!tiposPermitidos.includes(payload.tipo)) {
+        erroresValidacion.push("tipo debe ser 'Obligatoria' o 'Extracurricular'");
+    }
+
+    // Validar lógica de carrera_codigo según tipo
+    if (payload.tipo === "Obligatoria") {
+        if (!payload.carrera_codigo || payload.carrera_codigo === null) {
+            erroresValidacion.push("carrera_codigo es requerido cuando tipo='Obligatoria'");
+        }
+    } else if (payload.tipo === "Extracurricular") {
+        if (payload.carrera_codigo !== null && payload.carrera_codigo !== undefined) {
+            erroresValidacion.push("carrera_codigo debe ser null cuando tipo='Extracurricular'");
+        }
+    }
 
     if (!validarCodigoMateria(payload.id_materia)) {
         erroresValidacion.push("id_materia debe tener formato tipo SIS-111");
@@ -163,7 +184,7 @@ async function crearCurso(payload) {
     }
 
     // Validaciones de llaves foraneas
-    if (!(await carreraExiste(payload.carrera_codigo))) {
+    if (payload.carrera_codigo && !(await carreraExiste(payload.carrera_codigo))) {
         throw makeError(422, "Error de validación en los datos enviados", { errores: ["carrera_codigo inválido (no existe)"] });
     }
     if (!(await aulaExiste(payload.aula_id_aula))) {
@@ -178,8 +199,25 @@ async function crearCurso(payload) {
         throw makeError(409, "El registro ya existe en el sistema");
     }
 
-    if (await existeCursoMismoNombreEnCarrera(payload.nombre, payload.carrera_codigo)) {
+    // Solo validar duplicado por nombre si tiene carrera
+    if (payload.carrera_codigo && await existeCursoMismoNombreEnCarrera(payload.nombre, payload.carrera_codigo)) {
         throw makeError(409, "El registro ya existe en el sistema");
+    }
+
+    // Validar requisitos (opcional)
+    let requisitosValidados = [];
+    if (payload.requisitos && Array.isArray(payload.requisitos) && payload.requisitos.length > 0) {
+        for (const reqId of payload.requisitos) {
+            if (!(await existeCursoPorId(reqId))) {
+                erroresValidacion.push(`requisito '${reqId}' no existe en la base de datos`);
+            } else {
+                requisitosValidados.push(reqId);
+            }
+        }
+    }
+
+    if (erroresValidacion.length) {
+        throw makeError(422, "Error de validación en los datos enviados", { errores: erroresValidacion });
     }
 
     const { data, error } = await supabase
@@ -187,7 +225,7 @@ async function crearCurso(payload) {
         .insert([{
             id_materia: String(payload.id_materia).trim(), 
             usuario_ci: String(payload.usuario_ci),
-            carrera_codigo: payload.carrera_codigo,
+            carrera_codigo: payload.carrera_codigo || null,
             nombre: payload.nombre,
             tipo: payload.tipo,
             cupo: Number(payload.cupo),
@@ -203,6 +241,25 @@ async function crearCurso(payload) {
         .single();
 
     if (error) throw error;
+
+    // Insertar requisitos si los hay
+    if (requisitosValidados.length > 0) {
+        const requisitosInsert = requisitosValidados.map(reqId => ({
+            materia_id_materia: String(payload.id_materia).trim(),
+            requisito_id_materia: String(reqId)
+        }));
+
+        const { error: errorRequisitos } = await supabase
+            .from("materia_requisito")
+            .insert(requisitosInsert);
+
+        if (errorRequisitos) {
+            // Si falla la inserción de requisitos, intentar eliminar la materia creada
+            await supabase.from("materia").delete().eq("id_materia", String(payload.id_materia).trim());
+            throw makeError(500, "Error al registrar los requisitos", { error: errorRequisitos.message });
+        }
+    }
+
     return data;
 }
 
@@ -249,20 +306,51 @@ async function actualizarCurso(id, payload) {
         "fecha_fin",
         "monto",
         "aula_id_aula",
+        "requisitos", // Array de id_materia
     ];
 
     const updates = {};
+    let requisitosNuevos = null;
+    
     for (const k of allowed) {
-        if (payload[k] !== undefined) updates[k] = payload[k];
+        if (payload[k] !== undefined) {
+            if (k === "requisitos") {
+                requisitosNuevos = payload[k]; // Procesar aparte
+            } else {
+                updates[k] = payload[k];
+            }
+        }
     }
 
     // sin cambios
-    if (Object.keys(updates).length === 0) {
+    if (Object.keys(updates).length === 0 && requisitosNuevos === null) {
         return { sinCambios: true, data: actual };
     }
 
     // Validaciones 
     const erroresValidacion = [];
+
+    // Validar tipo si se actualiza
+    if (updates.tipo !== undefined) {
+        const tiposPermitidos = ["Obligatoria", "Extracurricular"];
+        if (!tiposPermitidos.includes(updates.tipo)) {
+            erroresValidacion.push("tipo debe ser 'Obligatoria' o 'Extracurricular'");
+        }
+    }
+
+    // Validar lógica de carrera_codigo vs tipo
+    const tipoFinal = updates.tipo ?? actual.tipo;
+    const carreraFinal = updates.carrera_codigo !== undefined ? updates.carrera_codigo : actual.carrera_codigo;
+
+    if (tipoFinal === "Obligatoria") {
+        if (!carreraFinal || carreraFinal === null) {
+            erroresValidacion.push("carrera_codigo es requerido cuando tipo='Obligatoria'");
+        }
+    } else if (tipoFinal === "Extracurricular") {
+        if (carreraFinal !== null) {
+            erroresValidacion.push("carrera_codigo debe ser null cuando tipo='Extracurricular'");
+        }
+    }
 
     if (updates.cupo !== undefined) {
         if (!Number.isInteger(Number(updates.cupo)) || Number(updates.cupo) <= 0) {
@@ -295,7 +383,7 @@ async function actualizarCurso(id, payload) {
     }
 
     // FK checks si cambian
-    if (updates.carrera_codigo !== undefined) {
+    if (updates.carrera_codigo !== undefined && updates.carrera_codigo !== null) {
         if (!(await carreraExiste(updates.carrera_codigo))) {
             erroresValidacion.push("carrera_codigo inválido (no existe)");
         }
@@ -319,11 +407,29 @@ async function actualizarCurso(id, payload) {
         throw makeError(422, "Datos inválidos para la actualización", { errores: erroresValidacion });
     }
 
-    // Duplicado por carrera (si cambian nombre/carrera)
-    const carreraFinal = updates.carrera_codigo ?? actual.carrera_codigo;
+    // Validar requisitos si se actualizan
+    let requisitosValidados = [];
+    if (requisitosNuevos !== null) {
+        if (Array.isArray(requisitosNuevos)) {
+            for (const reqId of requisitosNuevos) {
+                if (!(await existeCursoPorId(reqId))) {
+                    throw makeError(422, "Datos inválidos para la actualización", { 
+                        errores: [`requisito '${reqId}' no existe en la base de datos`] 
+                    });
+                }
+                requisitosValidados.push(reqId);
+            }
+        } else {
+            throw makeError(422, "Datos inválidos para la actualización", { 
+                errores: ["requisitos debe ser un array"] 
+            });
+        }
+    }
+
+    // Duplicado por carrera (si cambian nombre/carrera) - solo si tiene carrera
     const nombreFinal = updates.nombre ?? actual.nombre;
 
-    if (await existeCursoMismoNombreEnCarrera(nombreFinal, carreraFinal, String(id))) {
+    if (carreraFinal && await existeCursoMismoNombreEnCarrera(nombreFinal, carreraFinal, String(id))) {
         throw makeError(409, "Los datos a actualizar ya existen en otro registro");
     }
 
@@ -335,6 +441,32 @@ async function actualizarCurso(id, payload) {
         .single();
 
     if (error) throw error;
+
+    // Actualizar requisitos si se especificaron
+    if (requisitosNuevos !== null) {
+        // Eliminar requisitos anteriores
+        await supabase
+            .from("materia_requisito")
+            .delete()
+            .eq("materia_id_materia", String(id));
+
+        // Insertar nuevos requisitos
+        if (requisitosValidados.length > 0) {
+            const requisitosInsert = requisitosValidados.map(reqId => ({
+                materia_id_materia: String(id),
+                requisito_id_materia: String(reqId)
+            }));
+
+            const { error: errorRequisitos } = await supabase
+                .from("materia_requisito")
+                .insert(requisitosInsert);
+
+            if (errorRequisitos) {
+                throw makeError(500, "Error al actualizar los requisitos", { error: errorRequisitos.message });
+            }
+        }
+    }
+
     return { sinCambios: false, data };
 }
 
