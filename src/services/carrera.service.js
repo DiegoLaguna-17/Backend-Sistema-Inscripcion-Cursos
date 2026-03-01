@@ -127,9 +127,81 @@ const obtenerCarreraPorCodigo = async (codigo) => {
     return data;
 };
 
+// Obtener solo información de la carrera (sin materias) - Para "Ver más"
+const obtenerCarreraSinMaterias = async (codigo) => {
+    const { data, error } = await supabase
+        .from('carrera')
+        .select('codigo, nombre, descripcion, duracion')
+        .eq('codigo', codigo)
+        .single();
+    
+    if (error && error.code === 'PGRST116') {
+        throw {
+            status: 404,
+            message: 'No se encontró la carrera solicitada'
+        };
+    }
+    
+    if (error) {
+        throw error;
+    }
+
+    return data;
+};
+
+// Obtener solo las materias de una carrera - Para "Ver materias"
+const obtenerMateriasPorCarrera = async (codigo) => {
+    // Primero verificar que la carrera existe
+    const { data: carrera, error: errorCarrera } = await supabase
+        .from('carrera')
+        .select('codigo')
+        .eq('codigo', codigo)
+        .single();
+
+    if (errorCarrera && errorCarrera.code === 'PGRST116') {
+        throw {
+            status: 404,
+            message: 'No se encontró la carrera solicitada'
+        };
+    }
+
+    if (errorCarrera) {
+        throw errorCarrera;
+    }
+
+    // Obtener materias de la carrera
+    const { data, error } = await supabase
+        .from('materia')
+        .select(`
+            id_materia,
+            usuario_ci,
+            carrera_codigo,
+            nombre,
+            tipo,
+            cupo,
+            dia,
+            hora_inicio,
+            hora_fin,
+            fecha_inicio,
+            fecha_fin,
+            monto,
+            aula_id_aula,
+            aula:aula_id_aula ( id_aula, nombre )
+        `)
+        .eq('carrera_codigo', codigo);
+
+    if (error) {
+        throw error;
+    }
+
+    return data;
+};
+
 module.exports = {
     crearCarrera,
     obtenerCarreras,
     actualizarCarrera,
-    obtenerCarreraPorCodigo
+    obtenerCarreraPorCodigo,
+    obtenerCarreraSinMaterias,
+    obtenerMateriasPorCarrera
 };

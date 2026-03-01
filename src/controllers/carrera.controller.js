@@ -71,9 +71,47 @@ const obtenerCarreraPorCodigo = async (req, res, next) => {
     }
 };
 
+// Obtener solo info de carrera sin materias (para botón "Ver más")
+const obtenerCarreraSinMaterias = async (req, res, next) => {
+    try {
+        const { codigo } = req.params;
+
+        const carrera = await carreraService.obtenerCarreraSinMaterias(codigo);
+
+        res.status(200).json({
+            success: true,
+            message: 'Datos obtenidos correctamente',
+            data: carrera
+        });
+
+    } catch (error) {
+        next(error);
+    }
+};
+
+// Obtener materias de una carrera (para botón "Ver materias")
+const obtenerMateriasPorCarrera = async (req, res, next) => {
+    try {
+        const { codigo } = req.params;
+
+        const materias = await carreraService.obtenerMateriasPorCarrera(codigo);
+
+        res.status(200).json({
+            success: true,
+            message: materias.length === 0 ? 'Esta carrera no tiene materias registradas' : 'Materias obtenidas correctamente',
+            data: materias
+        });
+
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     crearCarrera,
     obtenerCarreras,
     actualizarCarrera,
-    obtenerCarreraPorCodigo
+    obtenerCarreraPorCodigo,
+    obtenerCarreraSinMaterias,
+    obtenerMateriasPorCarrera
 };
