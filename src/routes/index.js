@@ -7,6 +7,7 @@ const carreraRoutes = require('./carrera.routes');
 const cursosExtraRoutes = require("./cursoExtracurricular.routes");
 const aulaRoutes = require("./aula.routes");
 const inscripcionRoutes = require("./inscripcion.routes");
+const pagoRoutes = require("./pago.routes");
 const authController = require('../controllers/auth.controller');
 const authMiddleware = require('../middlewares/auth.middleware');
 
@@ -35,7 +36,7 @@ router.post(
 );
 
 router.use('/carreras', carreraRoutes);
-
+router.use("/pagos", pagoRoutes);
 router.use('/aulas', aulaRoutes);
 
 router.get(
