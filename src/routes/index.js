@@ -6,6 +6,7 @@ const administradorController = require('../controllers/administrador.controller
 const carreraRoutes = require('./carrera.routes');
 const cursosExtraRoutes = require("./cursoExtracurricular.routes");
 const aulaRoutes = require("./aula.routes");
+const inscripcionRoutes = require("./inscripcion.routes");
 const authController = require('../controllers/auth.controller');
 const authMiddleware = require('../middlewares/auth.middleware');
 
@@ -23,6 +24,8 @@ router.use('/docentes', docenteRoutes);
 router.use("/cursos", cursoRoutes);
 
 router.use("/cursos-extracurriculares", cursosExtraRoutes);
+
+router.use("/inscripcion", inscripcionRoutes);
 
 router.post(
   '/administradores/registro',
