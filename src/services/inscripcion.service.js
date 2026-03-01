@@ -28,7 +28,33 @@ async function obtenerEstudiante(ci) {
     return data;
 }
 
-function mapMateriaLikeUI(m, inscritos) {
+async function requisitosPorMaterias(idsMaterias) {
+    if (!idsMaterias || idsMaterias.length === 0) return {};
+
+    const { data, error } = await supabase
+        .from("materia_requisito")
+        .select(`
+            materia_id_materia,
+            requisito_id_materia,
+            requisito:requisito_id_materia ( id_materia, nombre )
+        `)
+        .in("materia_id_materia", idsMaterias);
+
+    if (error) throw error;
+
+    const map = {};
+    for (const row of data || []) {
+        const mid = row.materia_id_materia;
+        if (!map[mid]) map[mid] = [];
+        map[mid].push({
+            id_materia: row.requisito_id_materia,
+            nombre: row.requisito?.nombre || null,
+        });
+    }
+    return map;
+}
+
+function mapMateriaLikeUI(m, inscritos, requisitos = []) {
     return {
         dia: m.dia,
         aula: m.aula ? { id_aula: m.aula.id_aula, nombre: m.aula.nombre } : null,
@@ -46,6 +72,7 @@ function mapMateriaLikeUI(m, inscritos) {
         fecha_inicio: m.fecha_inicio,
         carrera_codigo: m.carrera_codigo,
         docente: m.docente ? { ci: m.docente.ci, nombre: m.docente.nombre } : null,
+        requisitos: requisitos || [],
     };
 }
 
@@ -216,8 +243,15 @@ async function listarMateriasDisponibles(ci_estudiante, opts = {}) {
 
     const ids = materias.map((m) => m.id_materia);
     const inscritosMap = await inscritosPorMaterias(ids);
+    const reqMap = await requisitosPorMaterias(ids);
 
-    return materias.map((m) => mapMateriaLikeUI(m, inscritosMap[m.id_materia] || 0));
+    return materias.map((m) =>
+        mapMateriaLikeUI(
+            m,
+            inscritosMap[m.id_materia] || 0,
+            reqMap[m.id_materia] || []
+        )
+    );
 }
 
 async function listarExtracurriculares(opts = {}) {
@@ -264,7 +298,9 @@ async function listarExtracurriculares(opts = {}) {
     const ids = materias.map((m) => m.id_materia);
     const inscritosMap = await inscritosPorMaterias(ids);
 
-    return materias.map((m) => mapMateriaLikeUI(m, inscritosMap[m.id_materia] || 0));
+    return materias.map((m) =>
+        mapMateriaLikeUI(m, inscritosMap[m.id_materia] || 0, [])
+    );
 }
 
 async function obtenerDetalleMateria(ci_estudiante, id_materia) {
@@ -282,9 +318,13 @@ async function obtenerDetalleMateria(ci_estudiante, id_materia) {
         throw makeError(403, "No puedes ver esta materia (no pertenece a tu carrera).");
     }
 
+    // inscritos
     const inscritosMap = await inscritosPorMaterias([materia.id_materia]);
     const inscritos = inscritosMap[materia.id_materia] || 0;
+    const reqMap = await requisitosPorMaterias([materia.id_materia]);
+    const requisitosUI = reqMap[materia.id_materia] || [];
 
+    // requisitos para validación
     const requisitosRaw = await obtenerRequisitos(materia.id_materia);
 
     const requisitos = [];
@@ -310,14 +350,14 @@ async function obtenerDetalleMateria(ci_estudiante, id_materia) {
     if (yaInscrito) motivos.push("Ya estás inscrito o tienes un pago pendiente en esta materia");
 
     return {
-        materia: mapMateriaLikeUI(materia, inscritos),
+        materia: mapMateriaLikeUI(materia, inscritos, requisitosUI),
         requisitos,
         puede_inscribirse: motivos.length === 0,
         motivos_bloqueo: motivos,
     };
 }
 
-async function obtenerDetalleExtracurricular(id_materia) {
+async function obtenerDetalleExtracurricular(ci_estudiante, id_materia) {
     const materia = await materiaExiste(id_materia);
     if (!materia) throw makeError(404, "No se encontraron registros");
 
@@ -327,13 +367,16 @@ async function obtenerDetalleExtracurricular(id_materia) {
     const inscritosMap = await inscritosPorMaterias([materia.id_materia]);
     const inscritos = inscritosMap[materia.id_materia] || 0;
 
-    const okCupo = await cupoDisponible(materia);
-
     const motivos = [];
+
+    const okCupo = await cupoDisponible(materia);
     if (!okCupo) motivos.push("No hay cupos disponibles");
 
+    const yaInscrito = await yaInscritoEnMateria(ci_estudiante, materia.id_materia);
+    if (yaInscrito) motivos.push("Ya estás inscrito o tienes un pago pendiente en esta materia");
+
     return {
-        materia: mapMateriaLikeUI(materia, inscritos),
+        materia: mapMateriaLikeUI(materia, inscritos, []),
         requisitos: [],
         puede_inscribirse: motivos.length === 0,
         motivos_bloqueo: motivos,
@@ -496,6 +539,9 @@ async function misInscripciones(ci_estudiante) {
     const materiasIds = (det || []).map((x) => x.materia_id_materia);
     const inscritosMap = await inscritosPorMaterias(materiasIds);
 
+    // requisitos
+    const reqMap = await requisitosPorMaterias(materiasIds);
+
     for (const d of (det || [])) {
         const row = map.get(d.inscripcion_id_inscripcion);
         if (!row) continue;
@@ -507,7 +553,9 @@ async function misInscripciones(ci_estudiante) {
             estado: d.estado,
             fecha_inicio: d.fecha_inicio,
             fecha_fin: d.fecha_fin,
-            materia: m ? mapMateriaLikeUI(m, inscritosMap[m.id_materia] || 0) : null,
+            materia: m
+                ? mapMateriaLikeUI(m, inscritosMap[m.id_materia] || 0, reqMap[m.id_materia] || [])
+                : null,
         });
     }
 
