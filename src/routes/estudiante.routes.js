@@ -4,6 +4,7 @@ const estudianteController = require("../controllers/estudiante.controller");
 const {
     verificarAutenticacion,
     verificarPermiso,
+    verificarAccesoPropioOAdmin
 } = require("../middlewares/auth.middleware");
 
 const router = Router();
@@ -62,7 +63,7 @@ router.get(
 router.get(
     "/:ci",
     verificarAutenticacion,
-    verificarPermiso("registro de usuarios"),
+    verificarAccesoPropioOAdmin(),
     estudianteController.obtenerEstudiantePorCI
 );
 
