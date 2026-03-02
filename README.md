@@ -44,3 +44,10 @@ http://localhost:3000
 ```sh
 npm i jsonwebtoken
 ```
+# Manejo de facturacion 
+```sh
+npm i puppeteer
+```
+```sh
+npm i nodemailer
+```

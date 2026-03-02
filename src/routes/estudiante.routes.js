@@ -4,11 +4,19 @@ const estudianteController = require("../controllers/estudiante.controller");
 const {
     verificarAutenticacion,
     verificarPermiso,
+    verificarAccesoPropioOAdmin
 } = require("../middlewares/auth.middleware");
 
 const router = Router();
 
 // ===== Rutas públicas (solo requieren autenticación) =====
+
+// Ver mi carrera (estudiante autenticado)
+router.get(
+    "/mi-carrera",
+    verificarAutenticacion,
+    estudianteController.obtenerMiCarrera
+);
 
 // Inscribirse a una carrera (estudiante se inscribe a sí mismo)
 router.post(
@@ -62,7 +70,7 @@ router.get(
 router.get(
     "/:ci",
     verificarAutenticacion,
-    verificarPermiso("registro de usuarios"),
+    verificarAccesoPropioOAdmin(),
     estudianteController.obtenerEstudiantePorCI
 );
 
