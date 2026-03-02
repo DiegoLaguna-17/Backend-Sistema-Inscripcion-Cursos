@@ -57,13 +57,14 @@ try {
     }
     return ok(res, "Registro actualizado correctamente", result.data, 200);
     } catch (err) {
+        console.error("❌ Error en actualizarCurso:", err);
         const status = err.status || 500;
 
         if (status === 404) return fail(res, "No se puede actualizar: el registro no existe", null, 404);
         if (status === 409) return fail(res, "Los datos a actualizar ya existen en otro registro", null, 409);
         if (status === 422) return fail(res, "Datos inválidos para la actualización", err.data || null, 422);
 
-        return fail(res, "Error interno del servidor", null, 500);
+        return fail(res, err.message || "Error interno del servidor", err.data || null, 500);
     }
 }
 

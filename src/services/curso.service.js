@@ -433,12 +433,11 @@ async function actualizarCurso(id, payload) {
         throw makeError(409, "Los datos a actualizar ya existen en otro registro");
     }
 
-    const { data, error } = await supabase
+    // Hacer el update sin el SELECT de joins para evitar el error de múltiples filas
+    const { error } = await supabase
         .from("materia")
         .update(updates)
-        .eq("id_materia", String(id)) // ✅ TEXT
-        .select(SELECT_CURSO)
-        .single();
+        .eq("id_materia", String(id));
 
     if (error) throw error;
 
@@ -467,7 +466,9 @@ async function actualizarCurso(id, payload) {
         }
     }
 
-    return { sinCambios: false, data };
+    // Obtener el curso actualizado completo con todos los joins
+    const cursoActualizado = await getCursoById(id);
+    return { sinCambios: false, data: cursoActualizado };
 }
 
 // Eliminar curso (id texto)
