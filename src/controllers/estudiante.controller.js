@@ -92,6 +92,20 @@ async function inscribirseCarrera(req, res, next) {
     }
 }
 
+async function obtenerMiCarrera(req, res, next) {
+    try {
+        const ci = req.usuario.ci; // CI del estudiante autenticado
+        const miCarrera = await service.getMiCarrera(ci);
+        res.status(200).json({ 
+            success: true,
+            message: "Datos obtenidos correctamente",
+            data: miCarrera 
+        });
+    } catch (err) {
+        next(err);
+    }
+}
+
 module.exports = {
     registrarEstudiante,
     listarEstudiantes,
@@ -100,4 +114,5 @@ module.exports = {
     eliminarEstudiante,
     asignarCarrera,
     inscribirseCarrera,
+    obtenerMiCarrera,
 };

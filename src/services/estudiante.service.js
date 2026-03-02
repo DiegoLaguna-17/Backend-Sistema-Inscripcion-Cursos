@@ -339,6 +339,88 @@ async function inscribirseCarrera(ci, payload) {
     return data;
 }
 
+// Obtener Mi Carrera (para estudiante autenticado)
+async function getMiCarrera(ci) {
+    // Obtener estudiante con su carrera
+    const estudiante = await findUserByCI(ci);
+    
+    if (!estudiante || estudiante.estado === false) {
+        const err = new Error("Registro no encontrado");
+        err.status = 404;
+        throw err;
+    }
+
+    // Verificar que tenga una carrera asignada
+    if (!estudiante.carrera_usuario) {
+        const err = new Error("No tienes una carrera asignada");
+        err.status = 404;
+        throw err;
+    }
+
+    // Obtener info completa de la carrera
+    const { data: carrera, error: errorCarrera } = await supabase
+        .from("carrera")
+        .select("codigo, nombre, descripcion, duracion")
+        .eq("codigo", estudiante.carrera_usuario)
+        .single();
+
+    if (errorCarrera) throw errorCarrera;
+
+    // Contar total de materias de la carrera
+    const { count: totalMaterias, error: errorTotal } = await supabase
+        .from("materia")
+        .select("id_materia", { count: "exact", head: true })
+        .eq("carrera_codigo", estudiante.carrera_usuario);
+
+    if (errorTotal) throw errorTotal;
+
+    // Obtener inscripciones de materias del estudiante con JOIN a inscripcion
+    const { data: inscripciones, error: errorInscripciones } = await supabase
+        .from("inscripciones_materia")
+        .select(`
+            estado,
+            inscripcion:inscripcion_id_inscripcion!inner(usuario_ci)
+        `)
+        .eq("inscripcion.usuario_ci", String(ci));
+
+    if (errorInscripciones) throw errorInscripciones;
+
+    // Contar materias por estado
+    const conteo = {
+        en_curso: 0,
+        aprobadas: 0,
+        reprobadas: 0,
+        retiradas: 0
+    };
+
+    if (inscripciones && inscripciones.length > 0) {
+        inscripciones.forEach(inscripcion => {
+            const estado = inscripcion.estado?.toUpperCase();
+            
+            if (estado === "INSCRITO" || estado === "EN_CURSO") {
+                conteo.en_curso++;
+            } else if (estado === "APROBADO") {
+                conteo.aprobadas++;
+            } else if (estado === "REPROBADO") {
+                conteo.reprobadas++;
+            } else if (estado === "RETIRADO") {
+                conteo.retiradas++;
+            }
+        });
+    }
+
+    return {
+        carrera,
+        total_materias_carrera: totalMaterias || 0,
+        materias_por_estado: conteo,
+        estudiante: {
+            ci: estudiante.ci,
+            nombre: estudiante.nombre,
+            correo: estudiante.correo
+        }
+    };
+}
+
 module.exports = {
     createStudent,
     listStudents,
@@ -347,4 +429,5 @@ module.exports = {
     deleteStudent,
     assignCarrera,
     inscribirseCarrera,
+    getMiCarrera,
 };
