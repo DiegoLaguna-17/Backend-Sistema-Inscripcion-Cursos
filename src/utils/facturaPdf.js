@@ -12,15 +12,9 @@ function escapeHtml(str = "") {
     }
 
     function loadLogoDataUri() {
-    // ✅ Prioriza tu nombre actual:
     const candidates = [
-        // Tu estructura actual (según screenshot)
         path.resolve(process.cwd(), "src", "assets", "logo_sixsevenacademy.png"),
-
-        // Si luego lo mueves a /assets en la raíz
         path.resolve(process.cwd(), "assets", "logo_sixsevenacademy.png"),
-
-        // Por si lo renombras como dijiste "sixsevenacademy.png"
         path.resolve(process.cwd(), "src", "assets", "sixsevenacademy.png"),
         path.resolve(process.cwd(), "assets", "sixsevenacademy.png"),
     ];
