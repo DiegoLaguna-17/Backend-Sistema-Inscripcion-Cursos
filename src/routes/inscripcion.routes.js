@@ -57,4 +57,20 @@ router.get(
     controller.misInscripciones
 );
 
+router.get(
+    "/activas",
+    verificarAutenticacion,
+    verificarRol([3]),
+    verificarPermiso("inscripcion a materias"),
+    controller.listarInscripcionesActivas
+);
+
+router.patch(
+    "/:inscripcionId/materias/:materiaId/retirar",
+    verificarAutenticacion,
+    verificarRol([3]),
+    verificarPermiso("inscripcion a materias"),
+    controller.retirarMateria
+);
+
 module.exports = router;
