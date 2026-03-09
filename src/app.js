@@ -4,6 +4,7 @@ require('dotenv').config();
 
 const routes = require('./routes/index');
 const { errorMiddleware } = require('./middlewares/error.middleware');
+const { iniciarCronActualizacionEstados } = require('./jobs/actualizarEstadosAcademicos');
 
 const app = express();
 
@@ -29,4 +30,7 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en http://localhost:${PORT}`);
   console.log(`API disponible en: http://localhost:${PORT}/api`);
+  
+  // Iniciar cron job de actualización de estados académicos
+  iniciarCronActualizacionEstados();
 });

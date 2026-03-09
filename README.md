@@ -51,3 +51,8 @@ npm i puppeteer
 ```sh
 npm i nodemailer
 ```
+
+### Majeno para tareas automaticas (culminación)
+```sh
+npm i node-cron
+```

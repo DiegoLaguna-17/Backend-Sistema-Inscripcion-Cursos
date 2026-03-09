@@ -688,6 +688,7 @@ async function retirarMateria(ci_estudiante, inscripcion_id, materia_id) {
         .from("inscripciones_materia")
         .update({
             estado: "RETIRADO",
+            estado_academico: "RETIRADO",
             fecha_retiro: hoyISO(),
         })
         .eq("inscripcion_id_inscripcion", String(inscripcion_id))
@@ -703,6 +704,495 @@ async function retirarMateria(ci_estudiante, inscripcion_id, materia_id) {
     };
 }
 
+async function calcularPromedioNotas(usuario_ci, materia_id) {
+    const { data, error } = await supabase
+        .from("notas")
+        .select("calificacion")
+        .eq("usuario_ci", String(usuario_ci))
+        .eq("materia_id_materia", String(materia_id));
+
+    if (error) throw error;
+    if (!data || data.length === 0) return null;
+
+    const suma = data.reduce((acc, nota) => acc + Number(nota.calificacion || 0), 0);
+    const promedio = suma / data.length;
+    return promedio;
+}
+
+async function calcularPorcentajeAsistencia(usuario_ci, materia_id) {
+    const { data, error } = await supabase
+        .from("asistencia")
+        .select("estado")
+        .eq("usuario_ci", String(usuario_ci))
+        .eq("materia_id_materia", String(materia_id));
+
+    if (error) throw error;
+    if (!data || data.length === 0) return null;
+
+    const presentes = data.filter((a) => a.estado === true).length;
+    const total = data.length;
+    const porcentaje = (presentes / total) * 100;
+    return porcentaje;
+}
+
+async function actualizarEstadosAcademicos() {
+    const hoy = hoyISO();
+    const resultados = {
+        activadas: 0,
+        finalizadas: 0,
+        aprobadas: 0,
+        reprobadas: 0,
+        retiradas_corregidas: 0,
+        errores: [],
+    };
+
+    try {
+        // PASO 0: Corregir materias retiradas antiguas (migración de datos)
+        const { data: materiasRetiradasAntiguas, error: errRetiradas } = await supabase
+            .from("inscripciones_materia")
+            .select("inscripcion_id_inscripcion, materia_id_materia")
+            .eq("estado", "RETIRADO")
+            .is("estado_academico", null);
+
+        if (errRetiradas) throw errRetiradas;
+
+        for (const mat of materiasRetiradasAntiguas || []) {
+            const { error: updErr } = await supabase
+                .from("inscripciones_materia")
+                .update({ estado_academico: "RETIRADO" })
+                .eq("inscripcion_id_inscripcion", mat.inscripcion_id_inscripcion)
+                .eq("materia_id_materia", mat.materia_id_materia);
+
+            if (updErr) {
+                resultados.errores.push({
+                    tipo: "corregir_retirada",
+                    inscripcion: mat.inscripcion_id_inscripcion,
+                    materia: mat.materia_id_materia,
+                    error: updErr.message,
+                });
+            } else {
+                resultados.retiradas_corregidas++;
+            }
+        }
+
+        // PASO A: Activar materias cuya fecha de inicio ya pasó o es hoy
+        const { data: materiasIniciar, error: errIniciar } = await supabase
+            .from("inscripciones_materia")
+            .select(`
+                inscripcion_id_inscripcion,
+                materia_id_materia,
+                fecha_inicio,
+                inscripcion:inscripcion_id_inscripcion ( usuario_ci )
+            `)
+            .eq("estado", "INSCRITO")
+            .is("estado_academico", null)
+            .lte("fecha_inicio", hoy);
+
+        if (errIniciar) throw errIniciar;
+
+        for (const mat of materiasIniciar || []) {
+            const { error: updErr } = await supabase
+                .from("inscripciones_materia")
+                .update({ estado_academico: "EN_CURSO" })
+                .eq("inscripcion_id_inscripcion", mat.inscripcion_id_inscripcion)
+                .eq("materia_id_materia", mat.materia_id_materia);
+
+            if (updErr) {
+                resultados.errores.push({
+                    tipo: "activar",
+                    inscripcion: mat.inscripcion_id_inscripcion,
+                    materia: mat.materia_id_materia,
+                    error: updErr.message,
+                });
+            } else {
+                resultados.activadas++;
+            }
+        }
+
+        // PASO B: Finalizar materias que tengan notas/asistencia registradas (sin esperar fecha_fin)
+        const { data: materiasTerminar, error: errTerminar } = await supabase
+            .from("inscripciones_materia")
+            .select(`
+                inscripcion_id_inscripcion,
+                materia_id_materia,
+                fecha_fin,
+                inscripcion:inscripcion_id_inscripcion ( usuario_ci )
+            `)
+            .eq("estado", "INSCRITO")
+            .eq("estado_academico", "EN_CURSO");
+
+        if (errTerminar) throw errTerminar;
+
+        for (const mat of materiasTerminar || []) {
+            try {
+                const usuario_ci = mat.inscripcion?.usuario_ci;
+                if (!usuario_ci) {
+                    resultados.errores.push({
+                        tipo: "finalizar",
+                        inscripcion: mat.inscripcion_id_inscripcion,
+                        materia: mat.materia_id_materia,
+                        error: "No se pudo obtener el CI del estudiante",
+                    });
+                    continue;
+                }
+
+                // Calcular promedio de notas y porcentaje de asistencia
+                const promedio = await calcularPromedioNotas(usuario_ci, mat.materia_id_materia);
+                const asistencia = await calcularPorcentajeAsistencia(usuario_ci, mat.materia_id_materia);
+
+                // Si no hay notas NI asistencias, no evaluar (queda EN_CURSO)
+                if (promedio === null && asistencia === null) {
+                    continue;
+                }
+
+                let nuevoEstado = "REPROBADA";
+
+                // Caso 1: Tiene notas y asistencias
+                if (promedio !== null && asistencia !== null) {
+                    if (promedio >= 51 && asistencia >= 70) {
+                        nuevoEstado = "APROBADA";
+                    }
+                }
+                // Caso 2: Solo tiene asistencias (cursos sin nota)
+                else if (promedio === null && asistencia !== null) {
+                    if (asistencia >= 70) {
+                        nuevoEstado = "APROBADA";
+                    }
+                }
+                // Caso 3: Solo tiene notas (no debería pasar normalmente)
+                else if (promedio !== null && asistencia === null) {
+                    if (promedio >= 51) {
+                        nuevoEstado = "APROBADA";
+                    }
+                }
+
+                // Actualizar estado académico
+                const { error: updErr } = await supabase
+                    .from("inscripciones_materia")
+                    .update({ estado_academico: nuevoEstado })
+                    .eq("inscripcion_id_inscripcion", mat.inscripcion_id_inscripcion)
+                    .eq("materia_id_materia", mat.materia_id_materia);
+
+                if (updErr) {
+                    resultados.errores.push({
+                        tipo: "finalizar",
+                        inscripcion: mat.inscripcion_id_inscripcion,
+                        materia: mat.materia_id_materia,
+                        error: updErr.message,
+                    });
+                } else {
+                    resultados.finalizadas++;
+                    if (nuevoEstado === "APROBADA") resultados.aprobadas++;
+                    else resultados.reprobadas++;
+                }
+            } catch (err) {
+                resultados.errores.push({
+                    tipo: "finalizar",
+                    inscripcion: mat.inscripcion_id_inscripcion,
+                    materia: mat.materia_id_materia,
+                    error: err.message,
+                });
+            }
+        }
+
+        return resultados;
+    } catch (error) {
+        throw error;
+    }
+}
+
+async function listarMateriasEnCurso(ci_estudiante) {
+    const { data: ins, error: insErr } = await supabase
+        .from("inscripcion")
+        .select("id_inscripcion, fecha_inscripcion")
+        .eq("usuario_ci", String(ci_estudiante))
+        .order("id_inscripcion", { ascending: false });
+
+    if (insErr) throw insErr;
+    const ids = (ins || []).map((x) => x.id_inscripcion);
+    if (ids.length === 0) return [];
+
+    const { data: det, error: detErr } = await supabase
+        .from("inscripciones_materia")
+        .select(`
+            inscripcion_id_inscripcion,
+            materia_id_materia,
+            estado,
+            estado_academico,
+            fecha_inicio,
+            fecha_fin,
+            fecha_retiro,
+            materia:materia_id_materia (
+                id_materia,
+                nombre,
+                tipo,
+                monto,
+                dia,
+                hora_inicio,
+                hora_fin,
+                cupo,
+                fecha_inicio,
+                fecha_fin,
+                aula_id_aula,
+                usuario_ci,
+                carrera_codigo,
+                aula:aula_id_aula ( id_aula, nombre ),
+                docente:usuario_ci ( ci, nombre )
+            )
+        `)
+        .in("inscripcion_id_inscripcion", ids)
+        .eq("estado_academico", "EN_CURSO");
+
+    if (detErr) throw detErr;
+
+    const map = new Map();
+    for (const i of ins) map.set(i.id_inscripcion, { ...i, materias: [] });
+
+    const materiasIds = (det || []).map((x) => x.materia_id_materia);
+    const inscritosMap = await inscritosPorMaterias(materiasIds);
+    const reqMap = await requisitosPorMaterias(materiasIds);
+
+    for (const d of (det || [])) {
+        const row = map.get(d.inscripcion_id_inscripcion);
+        if (!row) continue;
+
+        const m = d.materia;
+        row.materias.push({
+            inscripcion_id_inscripcion: d.inscripcion_id_inscripcion,
+            materia_id_materia: d.materia_id_materia,
+            estado: d.estado,
+            estado_academico: d.estado_academico,
+            fecha_inicio: d.fecha_inicio,
+            fecha_fin: d.fecha_fin,
+            fecha_retiro: d.fecha_retiro,
+            materia: m
+                ? mapMateriaLikeUI(m, inscritosMap[m.id_materia] || 0, reqMap[m.id_materia] || [])
+                : null,
+        });
+    }
+
+    return Array.from(map.values()).filter((x) => x.materias.length > 0);
+}
+
+async function listarMateriasCulminadas(ci_estudiante) {
+    const { data: ins, error: insErr } = await supabase
+        .from("inscripcion")
+        .select("id_inscripcion, fecha_inscripcion")
+        .eq("usuario_ci", String(ci_estudiante))
+        .order("id_inscripcion", { ascending: false });
+
+    if (insErr) throw insErr;
+    const ids = (ins || []).map((x) => x.id_inscripcion);
+    if (ids.length === 0) return [];
+
+    const { data: det, error: detErr } = await supabase
+        .from("inscripciones_materia")
+        .select(`
+            inscripcion_id_inscripcion,
+            materia_id_materia,
+            estado,
+            estado_academico,
+            fecha_inicio,
+            fecha_fin,
+            fecha_retiro,
+            materia:materia_id_materia (
+                id_materia,
+                nombre,
+                tipo,
+                monto,
+                dia,
+                hora_inicio,
+                hora_fin,
+                cupo,
+                fecha_inicio,
+                fecha_fin,
+                aula_id_aula,
+                usuario_ci,
+                carrera_codigo,
+                aula:aula_id_aula ( id_aula, nombre ),
+                docente:usuario_ci ( ci, nombre )
+            )
+        `)
+        .in("inscripcion_id_inscripcion", ids)
+        .in("estado_academico", ["APROBADA", "REPROBADA"]);
+
+    if (detErr) throw detErr;
+
+    const map = new Map();
+    for (const i of ins) map.set(i.id_inscripcion, { ...i, materias: [] });
+
+    const materiasIds = (det || []).map((x) => x.materia_id_materia);
+    const inscritosMap = await inscritosPorMaterias(materiasIds);
+    const reqMap = await requisitosPorMaterias(materiasIds);
+
+    for (const d of (det || [])) {
+        const row = map.get(d.inscripcion_id_inscripcion);
+        if (!row) continue;
+
+        const m = d.materia;
+        row.materias.push({
+            inscripcion_id_inscripcion: d.inscripcion_id_inscripcion,
+            materia_id_materia: d.materia_id_materia,
+            estado: d.estado,
+            estado_academico: d.estado_academico,
+            fecha_inicio: d.fecha_inicio,
+            fecha_fin: d.fecha_fin,
+            fecha_retiro: d.fecha_retiro,
+            materia: m
+                ? mapMateriaLikeUI(m, inscritosMap[m.id_materia] || 0, reqMap[m.id_materia] || [])
+                : null,
+        });
+    }
+
+    return Array.from(map.values()).filter((x) => x.materias.length > 0);
+}
+
+async function listarMateriasRetiradas(ci_estudiante) {
+    const { data: ins, error: insErr } = await supabase
+        .from("inscripcion")
+        .select("id_inscripcion, fecha_inscripcion")
+        .eq("usuario_ci", String(ci_estudiante))
+        .order("id_inscripcion", { ascending: false });
+
+    if (insErr) throw insErr;
+    const ids = (ins || []).map((x) => x.id_inscripcion);
+    if (ids.length === 0) return [];
+
+    const { data: det, error: detErr } = await supabase
+        .from("inscripciones_materia")
+        .select(`
+            inscripcion_id_inscripcion,
+            materia_id_materia,
+            estado,
+            estado_academico,
+            fecha_inicio,
+            fecha_fin,
+            fecha_retiro,
+            materia:materia_id_materia (
+                id_materia,
+                nombre,
+                tipo,
+                monto,
+                dia,
+                hora_inicio,
+                hora_fin,
+                cupo,
+                fecha_inicio,
+                fecha_fin,
+                aula_id_aula,
+                usuario_ci,
+                carrera_codigo,
+                aula:aula_id_aula ( id_aula, nombre ),
+                docente:usuario_ci ( ci, nombre )
+            )
+        `)
+        .in("inscripcion_id_inscripcion", ids)
+        .eq("estado_academico", "RETIRADO");
+
+    if (detErr) throw detErr;
+
+    const map = new Map();
+    for (const i of ins) map.set(i.id_inscripcion, { ...i, materias: [] });
+
+    const materiasIds = (det || []).map((x) => x.materia_id_materia);
+    const inscritosMap = await inscritosPorMaterias(materiasIds);
+    const reqMap = await requisitosPorMaterias(materiasIds);
+
+    for (const d of (det || [])) {
+        const row = map.get(d.inscripcion_id_inscripcion);
+        if (!row) continue;
+
+        const m = d.materia;
+        row.materias.push({
+            inscripcion_id_inscripcion: d.inscripcion_id_inscripcion,
+            materia_id_materia: d.materia_id_materia,
+            estado: d.estado,
+            estado_academico: d.estado_academico,
+            fecha_inicio: d.fecha_inicio,
+            fecha_fin: d.fecha_fin,
+            fecha_retiro: d.fecha_retiro,
+            materia: m
+                ? mapMateriaLikeUI(m, inscritosMap[m.id_materia] || 0, reqMap[m.id_materia] || [])
+                : null,
+        });
+    }
+
+    return Array.from(map.values()).filter((x) => x.materias.length > 0);
+}
+
+async function listarEstadoAcademico(ci_estudiante) {
+    const { data: ins, error: insErr } = await supabase
+        .from("inscripcion")
+        .select("id_inscripcion, fecha_inscripcion")
+        .eq("usuario_ci", String(ci_estudiante))
+        .order("id_inscripcion", { ascending: false });
+
+    if (insErr) throw insErr;
+    const ids = (ins || []).map((x) => x.id_inscripcion);
+    if (ids.length === 0) return [];
+
+    const { data: det, error: detErr } = await supabase
+        .from("inscripciones_materia")
+        .select(`
+            inscripcion_id_inscripcion,
+            materia_id_materia,
+            estado,
+            estado_academico,
+            fecha_inicio,
+            fecha_fin,
+            fecha_retiro,
+            materia:materia_id_materia (
+                id_materia,
+                nombre,
+                tipo,
+                monto,
+                dia,
+                hora_inicio,
+                hora_fin,
+                cupo,
+                fecha_inicio,
+                fecha_fin,
+                aula_id_aula,
+                usuario_ci,
+                carrera_codigo,
+                aula:aula_id_aula ( id_aula, nombre ),
+                docente:usuario_ci ( ci, nombre )
+            )
+        `)
+        .in("inscripcion_id_inscripcion", ids)
+        .in("estado_academico", ["EN_CURSO", "APROBADA", "REPROBADA"]);
+
+    if (detErr) throw detErr;
+
+    const map = new Map();
+    for (const i of ins) map.set(i.id_inscripcion, { ...i, materias: [] });
+
+    const materiasIds = (det || []).map((x) => x.materia_id_materia);
+    const inscritosMap = await inscritosPorMaterias(materiasIds);
+    const reqMap = await requisitosPorMaterias(materiasIds);
+
+    for (const d of (det || [])) {
+        const row = map.get(d.inscripcion_id_inscripcion);
+        if (!row) continue;
+
+        const m = d.materia;
+        row.materias.push({
+            inscripcion_id_inscripcion: d.inscripcion_id_inscripcion,
+            materia_id_materia: d.materia_id_materia,
+            estado: d.estado,
+            estado_academico: d.estado_academico,
+            fecha_inicio: d.fecha_inicio,
+            fecha_fin: d.fecha_fin,
+            fecha_retiro: d.fecha_retiro,
+            materia: m
+                ? mapMateriaLikeUI(m, inscritosMap[m.id_materia] || 0, reqMap[m.id_materia] || [])
+                : null,
+        });
+    }
+
+    return Array.from(map.values()).filter((x) => x.materias.length > 0);
+}
+
 module.exports = {
     listarMateriasDisponibles,
     obtenerDetalleMateria,
@@ -712,4 +1202,9 @@ module.exports = {
     misInscripciones,
     listarInscripcionesActivas,
     retirarMateria,
+    actualizarEstadosAcademicos,
+    listarMateriasEnCurso,
+    listarMateriasCulminadas,
+    listarMateriasRetiradas,
+    listarEstadoAcademico,
 };

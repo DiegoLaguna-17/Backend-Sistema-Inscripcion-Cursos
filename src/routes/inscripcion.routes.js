@@ -73,4 +73,43 @@ router.patch(
     controller.retirarMateria
 );
 
+router.post(
+    "/actualizar-estados",
+    verificarAutenticacion,
+    verificarRol([1, 2]),
+    controller.ejecutarActualizacionEstados
+);
+
+router.get(
+    "/en-curso",
+    verificarAutenticacion,
+    verificarRol([3]),
+    verificarPermiso("inscripcion a materias"),
+    controller.listarMateriasEnCurso
+);
+
+router.get(
+    "/culminadas",
+    verificarAutenticacion,
+    verificarRol([3]),
+    verificarPermiso("inscripcion a materias"),
+    controller.listarMateriasCulminadas
+);
+
+router.get(
+    "/retiradas",
+    verificarAutenticacion,
+    verificarRol([3]),
+    verificarPermiso("inscripcion a materias"),
+    controller.listarMateriasRetiradas
+);
+
+router.get(
+    "/estado-academico",
+    verificarAutenticacion,
+    verificarRol([3]),
+    verificarPermiso("inscripcion a materias"),
+    controller.listarEstadoAcademico
+);
+
 module.exports = router;
