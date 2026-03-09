@@ -146,6 +146,76 @@ async function retirarMateria(req, res) {
     }
 }
 
+async function ejecutarActualizacionEstados(req, res) {
+    try {
+        const resultados = await service.actualizarEstadosAcademicos();
+        return ok(res, "Actualización de estados ejecutada correctamente", resultados, 200);
+    } catch (err) {
+        const status = err.status || 500;
+        return fail(res, "Error al ejecutar actualización de estados", null, status);
+    }
+}
+
+async function listarMateriasEnCurso(req, res) {
+    try {
+        const ci = req.usuario?.ci;
+
+        const data = await service.listarMateriasEnCurso(ci);
+        if (!data || data.length === 0) {
+            return ok(res, "No se encontraron materias en curso", [], 200);
+        }
+        return ok(res, "Materias en curso obtenidas correctamente", data, 200);
+    } catch (err) {
+        const status = err.status || 500;
+        return fail(res, "Error interno del servidor", null, status);
+    }
+}
+
+async function listarMateriasCulminadas(req, res) {
+    try {
+        const ci = req.usuario?.ci;
+
+        const data = await service.listarMateriasCulminadas(ci);
+        if (!data || data.length === 0) {
+            return ok(res, "No se encontraron materias culminadas", [], 200);
+        }
+        return ok(res, "Materias culminadas obtenidas correctamente", data, 200);
+    } catch (err) {
+        const status = err.status || 500;
+        return fail(res, "Error interno del servidor", null, status);
+    }
+}
+
+async function listarMateriasRetiradas(req, res) {
+    try {
+        const ci = req.usuario?.ci;
+
+        const data = await service.listarMateriasRetiradas(ci);
+        if (!data || data.length === 0) {
+            return ok(res, "No se encontraron materias retiradas", [], 200);
+        }
+        return ok(res, "Materias retiradas obtenidas correctamente", data, 200);
+    } catch (err) {
+        const status = err.status || 500;
+        return fail(res, "Error interno del servidor", null, status);
+    }
+}
+
+async function listarEstadoAcademico(req, res) {
+    try {
+        const ci = req.usuario?.ci;
+
+        const data = await service.listarEstadoAcademico(ci);
+        if (!data || data.length === 0) {
+            return ok(res, "No se encontraron materias con estado académico", [], 200);
+        }
+        return ok(res, "Estado académico obtenido correctamente", data, 200);
+    } catch (err) {
+        const status = err.status || 500;
+        return fail(res, "Error interno del servidor", null, status);
+    }
+}
+
 module.exports = {
     listarMateriasDisponibles,
     obtenerDetalleMateria,
@@ -155,4 +225,9 @@ module.exports = {
     misInscripciones,
     listarInscripcionesActivas,
     retirarMateria,
+    ejecutarActualizacionEstados,
+    listarMateriasEnCurso,
+    listarMateriasCulminadas,
+    listarMateriasRetiradas,
+    listarEstadoAcademico,
 };
