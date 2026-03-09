@@ -504,32 +504,34 @@ async function misInscripciones(ci_estudiante) {
     if (ids.length === 0) return [];
 
     const { data: det, error: detErr } = await supabase
-        .from("inscripciones_materia")
-        .select(`
-            inscripcion_id_inscripcion,
-            materia_id_materia,
-            estado,
+    .from("inscripciones_materia")
+    .select(`
+        inscripcion_id_inscripcion,
+        materia_id_materia,
+        estado,
+        estado_academico,
+        fecha_inicio,
+        fecha_fin,
+        fecha_retiro,
+        materia:materia_id_materia (
+            id_materia,
+            nombre,
+            tipo,
+            monto,
+            dia,
+            hora_inicio,
+            hora_fin,
+            cupo,
             fecha_inicio,
             fecha_fin,
-            materia:materia_id_materia (
-                id_materia,
-                nombre,
-                tipo,
-                monto,
-                dia,
-                hora_inicio,
-                hora_fin,
-                cupo,
-                fecha_inicio,
-                fecha_fin,
-                aula_id_aula,
-                usuario_ci,
-                carrera_codigo,
-                aula:aula_id_aula ( id_aula, nombre ),
-                docente:usuario_ci ( ci, nombre )
-            )
-        `)
-        .in("inscripcion_id_inscripcion", ids);
+            aula_id_aula,
+            usuario_ci,
+            carrera_codigo,
+            aula:aula_id_aula ( id_aula, nombre ),
+            docente:usuario_ci ( ci, nombre )
+        )
+    `)
+    .in("inscripcion_id_inscripcion", ids);
 
     if (detErr) throw detErr;
 
@@ -551,8 +553,10 @@ async function misInscripciones(ci_estudiante) {
             inscripcion_id_inscripcion: d.inscripcion_id_inscripcion,
             materia_id_materia: d.materia_id_materia,
             estado: d.estado,
+            estado_academico: d.estado_academico,
             fecha_inicio: d.fecha_inicio,
             fecha_fin: d.fecha_fin,
+            fecha_retiro: d.fecha_retiro,
             materia: m
                 ? mapMateriaLikeUI(m, inscritosMap[m.id_materia] || 0, reqMap[m.id_materia] || [])
                 : null,
