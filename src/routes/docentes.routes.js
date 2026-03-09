@@ -65,4 +65,12 @@ router.get(
   docenteController.obtenerMateriasDocente,
 );
 
+// Obtener estudiantes y sus notas por materia
+router.get(
+  "/:id_materia/notas",
+  verificarAutenticacion,
+  verificarPermiso("registro de notas"),
+  docenteController.obtenerNotasEstudiantes,
+);
+
 module.exports = router;

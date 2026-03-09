@@ -275,10 +275,6 @@ class DocenteService {
   // Obtener las materias asignadas a un docente específico con conteo de inscritos
   async obtenerMateriasPorDocente(ci) {
     try {
-      // Realizamos una consulta que incluye:
-      // 1. Datos de la materia
-      // 2. Datos del aula (vía aula_id_aula)
-      // 3. Conteo de inscripciones (vía inscripciones_materia)
       const { data, error } = await supabase
         .from("materia")
         .select(
@@ -307,15 +303,12 @@ class DocenteService {
         throw new Error("Error al consultar las materias: " + error.message);
       }
 
-      // Supabase devuelve el conteo como un objeto [{ count: X }].
-      // Mapeamos para que 'inscritos' sea un número entero directo como pide el formato.
       const materiasFormateadas = data.map((materia) => {
         const count =
           materia.inscritos && materia.inscritos[0]
             ? materia.inscritos[0].count
             : 0;
 
-        // Creamos una copia del objeto sin la estructura anidada de Supabase para el conteo
         const { inscritos, ...resto } = materia;
 
         return {
@@ -327,6 +320,49 @@ class DocenteService {
       return materiasFormateadas;
     } catch (error) {
       console.error("Error en obtenerMateriasPorDocente:", error);
+      throw error;
+    }
+  }
+
+  // Obtener todos los estudiantes y sus calificaciones de una materia
+  async obtenerEstudiantesYNotas(id_materia) {
+    try {
+      const { data, error } = await supabase
+        .from("notas")
+        .select(
+          `
+          usuario_ci,
+          calificacion,
+          usuario:usuario_ci (
+            nombre
+          )
+        `,
+        )
+        .eq("materia_id_materia", id_materia);
+
+      if (error) {
+        throw new Error("Error al obtener las notas: " + error.message);
+      }
+
+      const agrupado = data.reduce((acc, current) => {
+        const ci = current.usuario_ci;
+
+        if (!acc[ci]) {
+          acc[ci] = {
+            id_estudiante: ci,
+            nombre: current.usuario?.nombre || "Sin nombre",
+            notas: [],
+          };
+        }
+
+        acc[ci].notas.push(current.calificacion);
+
+        return acc;
+      }, {});
+
+      return Object.values(agrupado);
+    } catch (error) {
+      console.error("Error en obtenerEstudiantesYNotas:", error);
       throw error;
     }
   }

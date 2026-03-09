@@ -336,6 +336,31 @@ class DocenteController {
       });
     }
   }
+
+  async obtenerNotasEstudiantes(req, res) {
+    try {
+      const { id_materia } = req.params;
+
+      if (!id_materia) {
+        return res.status(400).json({
+          exito: false,
+          mensaje: "El código de la materia es requerido",
+        });
+      }
+
+      const estudiantes =
+        await docenteService.obtenerEstudiantesYNotas(id_materia);
+
+      res.json(estudiantes);
+    } catch (error) {
+      console.error("Error en obtenerNotasEstudiantes controller:", error);
+      res.status(500).json({
+        exito: false,
+        mensaje: "Error al procesar la lista de notas",
+        errores: [error.message],
+      });
+    }
+  }
 }
 
 module.exports = new DocenteController();
