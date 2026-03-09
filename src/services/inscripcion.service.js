@@ -562,6 +562,143 @@ async function misInscripciones(ci_estudiante) {
     return Array.from(map.values());
 }
 
+async function listarInscripcionesActivas(ci_estudiante) {
+    const { data: ins, error: insErr } = await supabase
+        .from("inscripcion")
+        .select("id_inscripcion, fecha_inscripcion")
+        .eq("usuario_ci", String(ci_estudiante))
+        .order("id_inscripcion", { ascending: false });
+
+    if (insErr) throw insErr;
+    const ids = (ins || []).map((x) => x.id_inscripcion);
+    if (ids.length === 0) return [];
+
+    const { data: det, error: detErr } = await supabase
+        .from("inscripciones_materia")
+        .select(`
+            inscripcion_id_inscripcion,
+            materia_id_materia,
+            estado,
+            estado_academico,
+            fecha_inicio,
+            fecha_fin,
+            fecha_retiro,
+            materia:materia_id_materia (
+                id_materia,
+                nombre,
+                tipo,
+                monto,
+                dia,
+                hora_inicio,
+                hora_fin,
+                cupo,
+                fecha_inicio,
+                fecha_fin,
+                aula_id_aula,
+                usuario_ci,
+                carrera_codigo,
+                aula:aula_id_aula ( id_aula, nombre ),
+                docente:usuario_ci ( ci, nombre )
+            )
+        `)
+        .in("inscripcion_id_inscripcion", ids)
+        .in("estado", ["INSCRITO", "PENDIENTE_PAGO"]);
+
+    if (detErr) throw detErr;
+
+    const map = new Map();
+    for (const i of ins) map.set(i.id_inscripcion, { ...i, materias: [] });
+
+    const materiasIds = (det || []).map((x) => x.materia_id_materia);
+    const inscritosMap = await inscritosPorMaterias(materiasIds);
+    const reqMap = await requisitosPorMaterias(materiasIds);
+
+    for (const d of (det || [])) {
+        const row = map.get(d.inscripcion_id_inscripcion);
+        if (!row) continue;
+
+        const m = d.materia;
+        row.materias.push({
+            inscripcion_id_inscripcion: d.inscripcion_id_inscripcion,
+            materia_id_materia: d.materia_id_materia,
+            estado: d.estado,
+            estado_academico: d.estado_academico,
+            fecha_inicio: d.fecha_inicio,
+            fecha_fin: d.fecha_fin,
+            fecha_retiro: d.fecha_retiro,
+            materia: m
+                ? mapMateriaLikeUI(m, inscritosMap[m.id_materia] || 0, reqMap[m.id_materia] || [])
+                : null,
+        });
+    }
+
+    return Array.from(map.values()).filter((x) => x.materias.length > 0);
+}
+
+async function retirarMateria(ci_estudiante, inscripcion_id, materia_id) {
+    // 1. Verificar que la inscripción exista y pertenezca al estudiante
+    const { data: inscripcion, error: insErr } = await supabase
+        .from("inscripcion")
+        .select("id_inscripcion, usuario_ci")
+        .eq("id_inscripcion", String(inscripcion_id))
+        .eq("usuario_ci", String(ci_estudiante))
+        .maybeSingle();
+
+    if (insErr) throw insErr;
+    if (!inscripcion) {
+        throw makeError(404, "Inscripción no encontrada o no te pertenece");
+    }
+
+    // 2. Verificar que la materia exista en esa inscripción
+    const { data: detalle, error: detErr } = await supabase
+        .from("inscripciones_materia")
+        .select("inscripcion_id_inscripcion, materia_id_materia, estado, estado_academico, fecha_inicio, fecha_fin")
+        .eq("inscripcion_id_inscripcion", String(inscripcion_id))
+        .eq("materia_id_materia", String(materia_id))
+        .maybeSingle();
+
+    if (detErr) throw detErr;
+    if (!detalle) {
+        throw makeError(404, "Materia no encontrada en esta inscripción");
+    }
+
+    // 3. Validar que se pueda retirar
+    if (!detalle.estado || !["INSCRITO", "PENDIENTE_PAGO"].includes(detalle.estado)) {
+        throw makeError(400, "No se puede retirar una materia que no está inscrita o pendiente de pago");
+    }
+
+    if (detalle.estado === "RETIRADO") {
+        throw makeError(400, "Esta materia ya fue retirada");
+    }
+
+    // 4. Validar fecha límite (opcional - puedes descomentar si quieres validar fechas)
+    // const hoy = new Date();
+    // const fechaInicio = new Date(detalle.fecha_inicio);
+    // const diasDesdeInicio = Math.floor((hoy - fechaInicio) / (1000 * 60 * 60 * 24));
+    // if (diasDesdeInicio > 15) {
+    //     throw makeError(400, "Fecha límite de retiro excedida (máximo 15 días desde el inicio)");
+    // }
+
+    // 5. Actualizar el estado a RETIRADO y registrar fecha
+    const { data: updated, error: updErr } = await supabase
+        .from("inscripciones_materia")
+        .update({
+            estado: "RETIRADO",
+            fecha_retiro: hoyISO(),
+        })
+        .eq("inscripcion_id_inscripcion", String(inscripcion_id))
+        .eq("materia_id_materia", String(materia_id))
+        .select("inscripcion_id_inscripcion, materia_id_materia, estado, estado_academico, fecha_retiro")
+        .single();
+
+    if (updErr) throw updErr;
+
+    return {
+        mensaje: "Retiro exitoso",
+        detalle: updated,
+    };
+}
+
 module.exports = {
     listarMateriasDisponibles,
     obtenerDetalleMateria,
@@ -569,4 +706,6 @@ module.exports = {
     obtenerDetalleExtracurricular,
     crearInscripcion,
     misInscripciones,
+    listarInscripcionesActivas,
+    retirarMateria,
 };

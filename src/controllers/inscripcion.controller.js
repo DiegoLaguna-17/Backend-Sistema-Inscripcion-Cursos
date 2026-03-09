@@ -114,6 +114,38 @@ async function misInscripciones(req, res) {
     }
 }
 
+async function listarInscripcionesActivas(req, res) {
+    try {
+        const ci = req.usuario?.ci;
+
+        const data = await service.listarInscripcionesActivas(ci);
+        if (!data || data.length === 0) {
+            return ok(res, "No se encontraron materias activas", [], 200);
+        }
+        return ok(res, "Materias activas obtenidas correctamente", data, 200);
+    } catch (err) {
+        const status = err.status || 500;
+        if (status === 400) return fail(res, err.message, err.data || null, 400);
+        if (status === 404) return fail(res, err.message, err.data || null, 404);
+        return fail(res, "Error interno del servidor", null, 500);
+    }
+}
+
+async function retirarMateria(req, res) {
+    try {
+        const ci = req.usuario?.ci;
+        const { inscripcionId, materiaId } = req.params;
+
+        const result = await service.retirarMateria(ci, inscripcionId, materiaId);
+        return ok(res, result.mensaje, result.detalle, 200);
+    } catch (err) {
+        const status = err.status || 500;
+        if (status === 400) return fail(res, err.message, err.data || null, 400);
+        if (status === 404) return fail(res, err.message, err.data || null, 404);
+        return fail(res, "Error interno del servidor", null, 500);
+    }
+}
+
 module.exports = {
     listarMateriasDisponibles,
     obtenerDetalleMateria,
@@ -121,4 +153,6 @@ module.exports = {
     obtenerDetalleExtracurricular,
     crearInscripcion,
     misInscripciones,
+    listarInscripcionesActivas,
+    retirarMateria,
 };
