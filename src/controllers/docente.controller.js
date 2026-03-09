@@ -1,4 +1,4 @@
-const docenteService = require('../services/docente.service');
+const docenteService = require("../services/docente.service");
 
 class DocenteController {
   // Registrar un nuevo docente
@@ -6,17 +6,25 @@ class DocenteController {
     try {
       // Validar que se envíen todos los campos requeridos
       const camposRequeridos = [
-        'ci', 'nombre', 'correo', 'telefono', 
-        'contrasenia', 'fecha_nac', 'direccion', 'experiencia'
+        "ci",
+        "nombre",
+        "correo",
+        "telefono",
+        "contrasenia",
+        "fecha_nac",
+        "direccion",
+        "experiencia",
       ];
 
-      const camposFaltantes = camposRequeridos.filter(campo => !req.body[campo]);
+      const camposFaltantes = camposRequeridos.filter(
+        (campo) => !req.body[campo],
+      );
 
       if (camposFaltantes.length > 0) {
         return res.status(400).json({
           exito: false,
-          mensaje: 'Faltan campos requeridos',
-          errores: camposFaltantes
+          mensaje: "Faltan campos requeridos",
+          errores: camposFaltantes,
         });
       }
 
@@ -27,8 +35,8 @@ class DocenteController {
       if (ci.length < 4) {
         return res.status(400).json({
           exito: false,
-          mensaje: 'El carnet de identidad debe tener al menos 4 caracteres',
-          errores: ['CI inválido']
+          mensaje: "El carnet de identidad debe tener al menos 4 caracteres",
+          errores: ["CI inválido"],
         });
       }
 
@@ -37,8 +45,8 @@ class DocenteController {
       if (!emailRegex.test(correo)) {
         return res.status(400).json({
           exito: false,
-          mensaje: 'El formato del correo electrónico no es válido',
-          errores: ['Correo inválido']
+          mensaje: "El formato del correo electrónico no es válido",
+          errores: ["Correo inválido"],
         });
       }
 
@@ -46,8 +54,8 @@ class DocenteController {
       if (contrasenia.length < 6) {
         return res.status(400).json({
           exito: false,
-          mensaje: 'La contraseña debe tener al menos 6 caracteres',
-          errores: ['Contraseña muy corta']
+          mensaje: "La contraseña debe tener al menos 6 caracteres",
+          errores: ["Contraseña muy corta"],
         });
       }
 
@@ -56,8 +64,8 @@ class DocenteController {
       if (isNaN(fecha.getTime())) {
         return res.status(400).json({
           exito: false,
-          mensaje: 'La fecha de nacimiento no es válida',
-          errores: ['Fecha inválida']
+          mensaje: "La fecha de nacimiento no es válida",
+          errores: ["Fecha inválida"],
         });
       }
 
@@ -65,8 +73,8 @@ class DocenteController {
       if (fecha > new Date()) {
         return res.status(400).json({
           exito: false,
-          mensaje: 'La fecha de nacimiento no puede ser futura',
-          errores: ['Fecha futura']
+          mensaje: "La fecha de nacimiento no puede ser futura",
+          errores: ["Fecha futura"],
         });
       }
 
@@ -74,23 +82,22 @@ class DocenteController {
       const resultado = await docenteService.registrarDocente(req.body);
 
       res.status(201).json(resultado);
-
     } catch (error) {
-      console.error('Error en registrarDocente controller:', error);
-      
+      console.error("Error en registrarDocente controller:", error);
+
       // Manejar errores específicos
-      if (error.message.includes('Ya existe un usuario')) {
+      if (error.message.includes("Ya existe un usuario")) {
         return res.status(409).json({
           exito: false,
           mensaje: error.message,
-          errores: ['Conflicto de datos']
+          errores: ["Conflicto de datos"],
         });
       }
 
       res.status(500).json({
         exito: false,
-        mensaje: 'Error interno del servidor',
-        errores: [error.message]
+        mensaje: "Error interno del servidor",
+        errores: [error.message],
       });
     }
   }
@@ -99,28 +106,28 @@ class DocenteController {
   async verificarCI(req, res) {
     try {
       const { ci } = req.params;
-      
+
       if (!ci) {
         return res.status(400).json({
           exito: false,
-          mensaje: 'Se requiere el carnet de identidad',
-          errores: ['CI no proporcionado']
+          mensaje: "Se requiere el carnet de identidad",
+          errores: ["CI no proporcionado"],
         });
       }
 
       const existe = await docenteService.verificarCIExiste(ci);
-      
+
       res.json({
         exito: true,
-        mensaje: 'Consulta exitosa',
-        data: { existe }
+        mensaje: "Consulta exitosa",
+        data: { existe },
       });
     } catch (error) {
-      console.error('Error en verificarCI:', error);
+      console.error("Error en verificarCI:", error);
       res.status(500).json({
         exito: false,
-        mensaje: 'Error al verificar el carnet',
-        errores: [error.message]
+        mensaje: "Error al verificar el carnet",
+        errores: [error.message],
       });
     }
   }
@@ -129,19 +136,19 @@ class DocenteController {
   async obtenerDocentes(req, res) {
     try {
       const docentes = await docenteService.obtenerDocentes();
-      
+
       res.json({
         exito: true,
-        mensaje: 'Docentes obtenidos exitosamente',
+        mensaje: "Docentes obtenidos exitosamente",
         data: docentes,
-        total: docentes.length
+        total: docentes.length,
       });
     } catch (error) {
-      console.error('Error en obtenerDocentes:', error);
+      console.error("Error en obtenerDocentes:", error);
       res.status(500).json({
         exito: false,
-        mensaje: 'Error al obtener los docentes',
-        errores: [error.message]
+        mensaje: "Error al obtener los docentes",
+        errores: [error.message],
       });
     }
   }
@@ -150,37 +157,37 @@ class DocenteController {
   async obtenerDocente(req, res) {
     try {
       const { ci } = req.params;
-      
+
       if (!ci) {
         return res.status(400).json({
           exito: false,
-          mensaje: 'Se requiere el carnet de identidad',
-          errores: ['CI no proporcionado']
+          mensaje: "Se requiere el carnet de identidad",
+          errores: ["CI no proporcionado"],
         });
       }
 
       const docente = await docenteService.obtenerDocentePorCI(ci);
-      
+
       res.json({
         exito: true,
-        mensaje: 'Docente obtenido exitosamente',
-        data: docente
+        mensaje: "Docente obtenido exitosamente",
+        data: docente,
       });
     } catch (error) {
-      console.error('Error en obtenerDocente:', error);
-      
-      if (error.message.includes('No se encontró')) {
+      console.error("Error en obtenerDocente:", error);
+
+      if (error.message.includes("No se encontró")) {
         return res.status(404).json({
           exito: false,
           mensaje: error.message,
-          errores: ['Docente no encontrado']
+          errores: ["Docente no encontrado"],
         });
       }
 
       res.status(500).json({
         exito: false,
-        mensaje: 'Error al obtener el docente',
-        errores: [error.message]
+        mensaje: "Error al obtener el docente",
+        errores: [error.message],
       });
     }
   }
@@ -194,67 +201,74 @@ class DocenteController {
       if (!ci) {
         return res.status(400).json({
           exito: false,
-          mensaje: 'Se requiere el carnet de identidad',
-          errores: ['CI no proporcionado']
+          mensaje: "Se requiere el carnet de identidad",
+          errores: ["CI no proporcionado"],
         });
       }
 
       // Validar que solo se envíen campos permitidos
-      const camposPermitidos = ['telefono', 'direccion', 'contrasenia'];
+      const camposPermitidos = ["telefono", "direccion", "contrasenia"];
       const camposEnviados = Object.keys(datosActualizar);
-      const camposInvalidos = camposEnviados.filter(campo => !camposPermitidos.includes(campo));
+      const camposInvalidos = camposEnviados.filter(
+        (campo) => !camposPermitidos.includes(campo),
+      );
 
       if (camposInvalidos.length > 0) {
         return res.status(400).json({
           exito: false,
-          mensaje: 'Campos no permitidos para edición',
-          errores: [`Campos inválidos: ${camposInvalidos.join(', ')}. Permitidos: ${camposPermitidos.join(', ')}`]
+          mensaje: "Campos no permitidos para edición",
+          errores: [
+            `Campos inválidos: ${camposInvalidos.join(", ")}. Permitidos: ${camposPermitidos.join(", ")}`,
+          ],
         });
       }
 
       // Validaciones específicas
-      if (datosActualizar.contrasenia && datosActualizar.contrasenia.length < 6) {
+      if (
+        datosActualizar.contrasenia &&
+        datosActualizar.contrasenia.length < 6
+      ) {
         return res.status(400).json({
           exito: false,
-          mensaje: 'La contraseña debe tener al menos 6 caracteres',
-          errores: ['Contraseña muy corta']
+          mensaje: "La contraseña debe tener al menos 6 caracteres",
+          errores: ["Contraseña muy corta"],
         });
       }
 
       if (datosActualizar.telefono && datosActualizar.telefono.length < 8) {
         return res.status(400).json({
           exito: false,
-          mensaje: 'El teléfono debe tener al menos 8 caracteres',
-          errores: ['Teléfono inválido']
+          mensaje: "El teléfono debe tener al menos 8 caracteres",
+          errores: ["Teléfono inválido"],
         });
       }
 
       const resultado = await docenteService.editarDocente(ci, datosActualizar);
-      
+
       res.json(resultado);
     } catch (error) {
-      console.error('Error en editarDocente:', error);
-      
-      if (error.message.includes('No se encontró')) {
+      console.error("Error en editarDocente:", error);
+
+      if (error.message.includes("No se encontró")) {
         return res.status(404).json({
           exito: false,
           mensaje: error.message,
-          errores: ['Docente no encontrado']
+          errores: ["Docente no encontrado"],
         });
       }
 
-      if (error.message.includes('No se proporcionaron')) {
+      if (error.message.includes("No se proporcionaron")) {
         return res.status(400).json({
           exito: false,
           mensaje: error.message,
-          errores: ['Sin campos para actualizar']
+          errores: ["Sin campos para actualizar"],
         });
       }
 
       res.status(500).json({
         exito: false,
-        mensaje: 'Error al editar el docente',
-        errores: [error.message]
+        mensaje: "Error al editar el docente",
+        errores: [error.message],
       });
     }
   }
@@ -267,29 +281,83 @@ class DocenteController {
       if (!ci) {
         return res.status(400).json({
           exito: false,
-          mensaje: 'Se requiere el carnet de identidad',
-          errores: ['CI no proporcionado']
+          mensaje: "Se requiere el carnet de identidad",
+          errores: ["CI no proporcionado"],
         });
       }
 
       const resultado = await docenteService.eliminarDocente(ci);
-      
+
       res.json(resultado);
     } catch (error) {
-      console.error('Error en eliminarDocente:', error);
-      
-      if (error.message.includes('No se encontró')) {
+      console.error("Error en eliminarDocente:", error);
+
+      if (error.message.includes("No se encontró")) {
         return res.status(404).json({
           exito: false,
           mensaje: error.message,
-          errores: ['Docente no encontrado']
+          errores: ["Docente no encontrado"],
         });
       }
 
       res.status(500).json({
         exito: false,
-        mensaje: 'Error al eliminar el docente',
-        errores: [error.message]
+        mensaje: "Error al eliminar el docente",
+        errores: [error.message],
+      });
+    }
+  }
+
+  async obtenerMateriasDocente(req, res) {
+    try {
+      const { ci } = req.params;
+
+      if (!ci) {
+        return res.status(400).json({
+          exito: false,
+          mensaje: "Se requiere el carnet de identidad del docente",
+          errores: ["CI no proporcionado"],
+        });
+      }
+
+      const materias = await docenteService.obtenerMateriasPorDocente(ci);
+
+      res.json({
+        exito: true,
+        mensaje: "Materias obtenidas exitosamente",
+        data: materias,
+      });
+    } catch (error) {
+      console.error("Error en obtenerMateriasDocente controller:", error);
+      res.status(500).json({
+        exito: false,
+        mensaje: "Error al obtener las materias del docente",
+        errores: [error.message],
+      });
+    }
+  }
+
+  async obtenerNotasEstudiantes(req, res) {
+    try {
+      const { id_materia } = req.params;
+
+      if (!id_materia) {
+        return res.status(400).json({
+          exito: false,
+          mensaje: "El código de la materia es requerido",
+        });
+      }
+
+      const estudiantes =
+        await docenteService.obtenerEstudiantesYNotas(id_materia);
+
+      res.json(estudiantes);
+    } catch (error) {
+      console.error("Error en obtenerNotasEstudiantes controller:", error);
+      res.status(500).json({
+        exito: false,
+        mensaje: "Error al procesar la lista de notas",
+        errores: [error.message],
       });
     }
   }
