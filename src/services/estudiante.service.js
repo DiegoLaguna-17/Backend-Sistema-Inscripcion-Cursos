@@ -421,6 +421,26 @@ async function getMiCarrera(ci) {
     };
 }
 
+
+async function obtenerNotasPorMateria(estudianteId,materiaId){
+    const { data, error } = await supabase
+    .from("notas")
+    .select("calificacion")
+    .eq("usuario_ci", estudianteId)
+    .eq("materia_id_materia", materiaId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  
+
+  return {
+    data
+    
+  };
+}
+
 module.exports = {
     createStudent,
     listStudents,
@@ -430,4 +450,5 @@ module.exports = {
     assignCarrera,
     inscribirseCarrera,
     getMiCarrera,
+    obtenerNotasPorMateria
 };

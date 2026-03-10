@@ -43,7 +43,7 @@ async function registrarAsistenciaClase(req, res, next) {
 
 
 async function obtenerHistorialMateria(req, res, next) {
-  try {
+   try {
 
     const { materiaId } = req.params;
 
@@ -52,7 +52,7 @@ async function obtenerHistorialMateria(req, res, next) {
     res.status(200).json({
       success: true,
       message: "Datos obtenidos correctamente",
-      data: result,
+      data: result
     });
 
   } catch (error) {
