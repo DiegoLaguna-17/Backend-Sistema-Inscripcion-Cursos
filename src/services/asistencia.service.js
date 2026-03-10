@@ -24,46 +24,61 @@ async function registrarAsistenciaClase(materiaId, fecha, asistencias) {
 
 // historial para docente
 async function obtenerHistorialMateria(materiaId) {
+ try {
 
-  const { data, error } = await supabase
-    .from("asistencia")
-    .select(`
-      fecha,
-      estado,
-      usuario:usuario_ci (
-        ci,
-        nombre
-      )
-    `)
-    .eq("materia_id_materia", materiaId)
-    .order("fecha", { ascending: true });
+    const { data, error } = await supabase
+      .from("inscripciones_materia")
+      .select(`
+        materia_id_materia,
+        inscripcion:inscripcion_id_inscripcion (
+          usuario:usuario_ci (
+            ci,
+            nombre,
+            asistencia!left (
+              fecha,
+              estado,
+              materia_id_materia
+            )
+          )
+        )
+      `)
+      .eq("materia_id_materia", materiaId);
 
-  if (error) {
-    throw new Error(error.message);
-  }
+    if (error) throw error;
 
-  const resultado = {};
+    const estudiantes = data.map((e) => {
 
-  data.forEach(registro => {
+      const usuario = e.inscripcion?.usuario;
 
-    const ci = registro.usuario.ci;
+      const asistencias =
+        (usuario?.asistencia || [])
+          .filter(a => a.materia_id_materia === materiaId)
+          .map(a => ({
+            fecha: a.fecha,
+            estado: a.estado
+          }));
 
-    if (!resultado[ci]) {
-      resultado[ci] = {
-        ci: registro.usuario.ci,
-        nombre: registro.usuario.nombre,
-        asistencias: []
+      return {
+        ci: usuario?.ci,
+        nombre: usuario?.nombre ?? "Sin nombre",
+        asistencias: asistencias.length > 0
+          ? asistencias
+          : [
+              {
+                fecha: null,
+                estado: null
+              }
+            ]
       };
-    }
 
-    resultado[ci].asistencias.push({
-      fecha: registro.fecha,
-      estado: registro.estado
     });
 
-  });
+    return estudiantes;
 
-  return Object.values(resultado);
+  } catch (error) {
+    console.error("Error en obtenerAsistenciaClase:", error);
+    throw error;
+  }
 }
 
 // conteo de asistencias del estudiante
