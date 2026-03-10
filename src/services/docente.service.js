@@ -370,24 +370,59 @@ class DocenteService {
   // Registrar las notas de estudiantes de una materia
   async agregarNotasEstudiantes(id_materia, notasArray) {
     try {
+      const cisEstudiantes = [
+        ...new Set(notasArray.map((n) => n.id_estudiante)),
+      ];
+
+      const { data: inscripcionesValidas, error: errorValidacion } =
+        await supabase
+          .from("inscripciones_materia")
+          .select(
+            `
+          materia_id_materia,
+          inscripcion!inner (
+            usuario_ci
+          )
+        `,
+          )
+          .eq("materia_id_materia", id_materia)
+          .in("inscripcion.usuario_ci", cisEstudiantes);
+
+      if (errorValidacion)
+        throw new Error(
+          "Error al validar inscripciones: " + errorValidacion.message,
+        );
+
+      const cisValidados = inscripcionesValidas.map(
+        (i) => i.inscripcion.usuario_ci,
+      );
+      const estudiantesNoInscritos = cisEstudiantes.filter(
+        (ci) => !cisValidados.includes(ci),
+      );
+
+      if (estudiantesNoInscritos.length > 0) {
+        throw new Error(
+          `Los siguientes estudiantes no están inscritos en esta materia: ${estudiantesNoInscritos.join(", ")}`,
+        );
+      }
+
       const filasAInsertar = notasArray.map((nota) => ({
         usuario_ci: nota.id_estudiante,
         materia_id_materia: id_materia,
         calificacion: nota.nueva_nota,
       }));
 
-      const { data, error } = await supabase
+      const { data, error: errorInsert } = await supabase
         .from("notas")
         .insert(filasAInsertar)
         .select();
 
-      if (error) {
-        throw new Error("Error al insertar las notas: " + error.message);
-      }
+      if (errorInsert)
+        throw new Error("Error al insertar las notas: " + errorInsert.message);
 
       return {
         exito: true,
-        mensaje: `${data.length} notas registradas correctamente`,
+        mensaje: `Se registraron ${data.length} notas exitosamente.`,
         data,
       };
     } catch (error) {

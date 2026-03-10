@@ -374,7 +374,7 @@ class DocenteController {
         return res.status(400).json({
           exito: false,
           mensaje:
-            "Datos de entrada inválidos. Se requiere id_materia y un arreglo de notas.",
+            "Cuerpo de solicitud inválido. Se requiere id_materia y el arreglo de notas.",
         });
       }
 
@@ -386,9 +386,18 @@ class DocenteController {
       res.status(201).json(resultado);
     } catch (error) {
       console.error("Error en registrarNotas controller:", error);
+
+      if (error.message.includes("no están inscritos")) {
+        return res.status(400).json({
+          exito: false,
+          mensaje: "Fallo en la validación de inscripciones",
+          errores: [error.message],
+        });
+      }
+
       res.status(500).json({
         exito: false,
-        mensaje: "Error al procesar el registro de notas",
+        mensaje: "Error interno al registrar notas",
         errores: [error.message],
       });
     }
