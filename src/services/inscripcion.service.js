@@ -459,10 +459,11 @@ async function crearInscripcion(ci_estudiante, payload) {
                 inscripcion_id_inscripcion: ins.id_inscripcion,
                 materia_id_materia: String(materia.id_materia),
                 estado,
+                estado_academico: null,
                 fecha_inicio: materia.fecha_inicio,
                 fecha_fin: materia.fecha_fin,
             }])
-            .select("inscripcion_id_inscripcion, materia_id_materia, estado, fecha_inicio, fecha_fin")
+            .select("inscripcion_id_inscripcion, materia_id_materia, estado, estado_academico, fecha_inicio, fecha_fin")
             .single();
 
         if (detErr) {
@@ -777,16 +778,18 @@ async function actualizarEstadosAcademicos() {
 
         // PASO A: Activar materias cuya fecha de inicio ya pasó o es hoy
         const { data: materiasIniciar, error: errIniciar } = await supabase
-            .from("inscripciones_materia")
-            .select(`
-                inscripcion_id_inscripcion,
-                materia_id_materia,
-                fecha_inicio,
-                inscripcion:inscripcion_id_inscripcion ( usuario_ci )
-            `)
-            .eq("estado", "INSCRITO")
-            .is("estado_academico", null)
-            .lte("fecha_inicio", hoy);
+    .from("inscripciones_materia")
+        .select(`
+            inscripcion_id_inscripcion,
+            materia_id_materia,
+            fecha_inicio,
+            fecha_fin,
+            inscripcion:inscripcion_id_inscripcion ( usuario_ci )
+        `)
+        .eq("estado", "INSCRITO")
+        .is("estado_academico", null)
+        .lte("fecha_inicio", hoy)
+        .gte("fecha_fin", hoy);
 
         if (errIniciar) throw errIniciar;
 

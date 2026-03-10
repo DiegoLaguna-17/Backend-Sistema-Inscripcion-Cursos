@@ -92,15 +92,61 @@ function makeError(status, message, data = null) {
     }
 
     async function marcarInscrito(idInscripcion) {
-    const { data, error } = await supabase
-        .from("inscripciones_materia")
-        .update({ estado: "INSCRITO" })
-        .eq("inscripcion_id_inscripcion", Number(idInscripcion))
-        .eq("estado", "PENDIENTE_PAGO")
-        .select("inscripcion_id_inscripcion, materia_id_materia, estado");
+        const hoy = hoyISO();
 
-    if (error) throw error;
-    return data || [];
+        const { data: pendientes, error: pendientesErr } = await supabase
+            .from("inscripciones_materia")
+            .select(`
+                inscripcion_id_inscripcion,
+                materia_id_materia,
+                estado,
+                estado_academico,
+                fecha_inicio,
+                fecha_fin
+            `)
+            .eq("inscripcion_id_inscripcion", Number(idInscripcion))
+            .eq("estado", "PENDIENTE_PAGO");
+
+        if (pendientesErr) throw pendientesErr;
+
+        if (!pendientes || pendientes.length === 0) {
+            return [];
+        }
+
+        const actualizados = [];
+
+        for (const materia of pendientes) {
+            const debeEstarEnCurso =
+                materia.fecha_inicio <= hoy &&
+                materia.fecha_fin >= hoy;
+
+            const nuevoEstadoAcademico = debeEstarEnCurso ? "EN_CURSO" : null;
+
+            const { data, error } = await supabase
+                .from("inscripciones_materia")
+                .update({
+                    estado: "INSCRITO",
+                    estado_academico: nuevoEstadoAcademico,
+                })
+                .eq("inscripcion_id_inscripcion", Number(idInscripcion))
+                .eq("materia_id_materia", String(materia.materia_id_materia))
+                .eq("estado", "PENDIENTE_PAGO")
+                .select(`
+                    inscripcion_id_inscripcion,
+                    materia_id_materia,
+                    estado,
+                    estado_academico,
+                    fecha_inicio,
+                    fecha_fin
+                `)
+                .single();
+
+            if (error) throw error;
+
+            actualizados.push(data);
+        }
+
+        return actualizados;
     }
 
     async function crearFactura(ci, total, datosFactura) {
