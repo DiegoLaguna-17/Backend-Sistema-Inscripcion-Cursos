@@ -351,12 +351,44 @@ class DocenteController {
       const estudiantes =
         await docenteService.obtenerEstudiantesYNotas(id_materia);
 
-      res.json(estudiantes);
+      res.json({
+        exito: true,
+        mensaje: "Notas obtenidas correctamente",
+        data: estudiantes,
+      });
     } catch (error) {
       console.error("Error en obtenerNotasEstudiantes controller:", error);
       res.status(500).json({
         exito: false,
         mensaje: "Error al procesar la lista de notas",
+        errores: [error.message],
+      });
+    }
+  }
+
+  async registrarNotas(req, res) {
+    try {
+      const { id_materia, notas } = req.body;
+
+      if (!id_materia || !notas || !Array.isArray(notas)) {
+        return res.status(400).json({
+          exito: false,
+          mensaje:
+            "Datos de entrada inválidos. Se requiere id_materia y un arreglo de notas.",
+        });
+      }
+
+      const resultado = await docenteService.agregarNotasEstudiantes(
+        id_materia,
+        notas,
+      );
+
+      res.status(201).json(resultado);
+    } catch (error) {
+      console.error("Error en registrarNotas controller:", error);
+      res.status(500).json({
+        exito: false,
+        mensaje: "Error al procesar el registro de notas",
         errores: [error.message],
       });
     }
