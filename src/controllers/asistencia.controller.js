@@ -47,7 +47,7 @@ async function obtenerHistorialMateria(req, res, next) {
 
     const { materiaId } = req.params;
 
-    const result = await asistenciaService.obtenerAsistenciaClase(materiaId);
+    const result = await asistenciaService.obtenerHistorialMateria(materiaId);
 
     res.status(200).json({
       success: true,

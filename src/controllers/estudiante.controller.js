@@ -106,6 +106,28 @@ async function obtenerMiCarrera(req, res, next) {
     }
 }
 
+async function obtenerNotasMateria(req,res,next){
+    try {
+    
+        const { materiaId } = req.params;
+        const estudianteId = req.usuario.ci;
+    
+        const result = await service.obtenerNotasPorMateria(
+          estudianteId,
+          materiaId
+        );
+    
+        res.status(200).json({
+          success: true,
+          message: "Datos obtenidos correctamente",
+          data: result,
+        });
+    
+      } catch (error) {
+        next(error);
+      }
+}
+
 module.exports = {
     registrarEstudiante,
     listarEstudiantes,
@@ -115,4 +137,5 @@ module.exports = {
     asignarCarrera,
     inscribirseCarrera,
     obtenerMiCarrera,
+    obtenerNotasMateria
 };

@@ -27,22 +27,22 @@ async function obtenerHistorialMateria(materiaId) {
  try {
 
     const { data, error } = await supabase
-      .from("inscripciones_materia")
-      .select(`
-        materia_id_materia,
-        inscripcion:inscripcion_id_inscripcion (
-          usuario:usuario_ci (
-            ci,
-            nombre,
-            asistencia!left (
-              fecha,
-              estado,
-              materia_id_materia
-            )
-          )
+  .from("inscripciones_materia")
+  .select(`
+    materia_id_materia,
+    inscripcion:inscripcion_id_inscripcion (
+      usuario:usuario_ci (
+        ci,
+        nombre,
+        asistencia:asistencia!asistencia_usuario (
+          fecha,
+          estado,
+          materia_id_materia
         )
-      `)
-      .eq("materia_id_materia", materiaId);
+      )
+    )
+  `)
+  .eq("materia_id_materia", materiaId);
 
     if (error) throw error;
 
