@@ -452,6 +452,12 @@ async function crearInscripcion(ci_estudiante, payload) {
         if (!okReq) continue;
 
         const estado = Number(materia.monto) > 0 ? "PENDIENTE_PAGO" : "INSCRITO";
+        
+        // Calcular estado académico: si ya empezó, marcar como EN_CURSO (independiente del pago)
+        let estado_academico = null;
+        if (materia.fecha_inicio && materia.fecha_inicio <= hoyISO()) {
+            estado_academico = "EN_CURSO";
+        }
 
         const { data: det, error: detErr } = await supabase
             .from("inscripciones_materia")
@@ -459,7 +465,7 @@ async function crearInscripcion(ci_estudiante, payload) {
                 inscripcion_id_inscripcion: ins.id_inscripcion,
                 materia_id_materia: String(materia.id_materia),
                 estado,
-                estado_academico: null,
+                estado_academico,
                 fecha_inicio: materia.fecha_inicio,
                 fecha_fin: materia.fecha_fin,
             }])
@@ -786,7 +792,7 @@ async function actualizarEstadosAcademicos() {
             fecha_fin,
             inscripcion:inscripcion_id_inscripcion ( usuario_ci )
         `)
-        .eq("estado", "INSCRITO")
+        .in("estado", ["INSCRITO", "PENDIENTE_PAGO"])
         .is("estado_academico", null)
         .lte("fecha_inicio", hoy)
         .gte("fecha_fin", hoy);
@@ -821,7 +827,7 @@ async function actualizarEstadosAcademicos() {
                 fecha_fin,
                 inscripcion:inscripcion_id_inscripcion ( usuario_ci )
             `)
-            .eq("estado", "INSCRITO")
+            .in("estado", ["INSCRITO", "PENDIENTE_PAGO"])
             .eq("estado_academico", "EN_CURSO");
 
         if (errTerminar) throw errTerminar;
