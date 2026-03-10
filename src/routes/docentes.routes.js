@@ -73,4 +73,12 @@ router.get(
   docenteController.obtenerNotasEstudiantes,
 );
 
+// Registrar notas de estudiantes por materia
+router.post(
+  "/registrar-notas",
+  verificarAutenticacion,
+  verificarPermiso("registro de notas"),
+  docenteController.registrarNotas,
+);
+
 module.exports = router;
