@@ -36,13 +36,34 @@ async function obtenerHistorialMateria(materiaId) {
       )
     `)
     .eq("materia_id_materia", materiaId)
-    .order("fecha", { ascending: false });
+    .order("fecha", { ascending: true });
 
   if (error) {
     throw new Error(error.message);
   }
 
-  return data;
+  const resultado = {};
+
+  data.forEach(registro => {
+
+    const ci = registro.usuario.ci;
+
+    if (!resultado[ci]) {
+      resultado[ci] = {
+        ci: registro.usuario.ci,
+        nombre: registro.usuario.nombre,
+        asistencias: []
+      };
+    }
+
+    resultado[ci].asistencias.push({
+      fecha: registro.fecha,
+      estado: registro.estado
+    });
+
+  });
+
+  return Object.values(resultado);
 }
 
 // conteo de asistencias del estudiante
