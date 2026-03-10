@@ -194,38 +194,6 @@ async function yaInscritoEnMateria(ci_estudiante, id_materia) {
     return !!data;
 }
 
-async function retiroEnMismoCiclo(ci_estudiante, id_materia) {
-    const { data: ins, error: insErr } = await supabase
-        .from("inscripcion")
-        .select("id_inscripcion")
-        .eq("usuario_ci", String(ci_estudiante));
-
-    if (insErr) throw insErr;
-
-    const ids = (ins || []).map((x) => x.id_inscripcion);
-    if (ids.length === 0) return false;
-
-    const { data, error } = await supabase
-        .from("inscripciones_materia")
-        .select(`
-            materia_id_materia,
-            estado,
-            fecha_inicio,
-            fecha_fin,
-            fecha_retiro
-        `)
-        .in("inscripcion_id_inscripcion", ids)
-        .eq("materia_id_materia", String(id_materia))
-        .eq("estado", "RETIRADO")
-        .maybeSingle();
-
-    if (error) throw error;
-    if (!data) return false;
-
-    const hoy = hoyISO();
-    return data.fecha_inicio <= hoy && data.fecha_fin >= hoy;
-}
-
 async function listarMateriasDisponibles(ci_estudiante, opts = {}) {
     const user = await obtenerEstudiante(ci_estudiante);
 
@@ -350,11 +318,13 @@ async function obtenerDetalleMateria(ci_estudiante, id_materia) {
         throw makeError(403, "No puedes ver esta materia (no pertenece a tu carrera).");
     }
 
+    // inscritos
     const inscritosMap = await inscritosPorMaterias([materia.id_materia]);
     const inscritos = inscritosMap[materia.id_materia] || 0;
     const reqMap = await requisitosPorMaterias([materia.id_materia]);
     const requisitosUI = reqMap[materia.id_materia] || [];
 
+    // requisitos para validación
     const requisitosRaw = await obtenerRequisitos(materia.id_materia);
 
     const requisitos = [];
@@ -378,11 +348,6 @@ async function obtenerDetalleMateria(ci_estudiante, id_materia) {
 
     const yaInscrito = await yaInscritoEnMateria(ci_estudiante, materia.id_materia);
     if (yaInscrito) motivos.push("Ya estás inscrito o tienes un pago pendiente en esta materia");
-
-    const retiroPrevio = await retiroEnMismoCiclo(ci_estudiante, materia.id_materia);
-    if (retiroPrevio) {
-        motivos.push("No puedes volver a inscribirte a una materia retirada en el mismo ciclo");
-    }
 
     return {
         materia: mapMateriaLikeUI(materia, inscritos, requisitosUI),
@@ -409,11 +374,6 @@ async function obtenerDetalleExtracurricular(ci_estudiante, id_materia) {
 
     const yaInscrito = await yaInscritoEnMateria(ci_estudiante, materia.id_materia);
     if (yaInscrito) motivos.push("Ya estás inscrito o tienes un pago pendiente en esta materia");
-
-    const retiroPrevio = await retiroEnMismoCiclo(ci_estudiante, materia.id_materia);
-    if (retiroPrevio) {
-        motivos.push("No puedes volver a inscribirte a una materia retirada en el mismo ciclo");
-    }
 
     return {
         materia: mapMateriaLikeUI(materia, inscritos, []),
@@ -472,15 +432,6 @@ async function crearInscripcion(ci_estudiante, payload) {
             continue;
         }
 
-        const retiroPrevio = await retiroEnMismoCiclo(ci_estudiante, materia.id_materia);
-        if (retiroPrevio) {
-            errores.push({
-                materia: id,
-                error: "No puedes volver a inscribirte a una materia retirada en el mismo ciclo"
-            });
-            continue;
-        }
-
         const okCupo = await cupoDisponible(materia);
         if (!okCupo) {
             errores.push({ materia: id, error: "Sin cupos" });
@@ -501,6 +452,12 @@ async function crearInscripcion(ci_estudiante, payload) {
         if (!okReq) continue;
 
         const estado = Number(materia.monto) > 0 ? "PENDIENTE_PAGO" : "INSCRITO";
+        
+        // Calcular estado académico: si ya empezó, marcar como EN_CURSO (independiente del pago)
+        let estado_academico = null;
+        if (materia.fecha_inicio && materia.fecha_inicio <= hoyISO()) {
+            estado_academico = "EN_CURSO";
+        }
 
         const { data: det, error: detErr } = await supabase
             .from("inscripciones_materia")
@@ -508,7 +465,7 @@ async function crearInscripcion(ci_estudiante, payload) {
                 inscripcion_id_inscripcion: ins.id_inscripcion,
                 materia_id_materia: String(materia.id_materia),
                 estado,
-                estado_academico: null,
+                estado_academico,
                 fecha_inicio: materia.fecha_inicio,
                 fecha_fin: materia.fecha_fin,
             }])
@@ -554,34 +511,34 @@ async function misInscripciones(ci_estudiante) {
     if (ids.length === 0) return [];
 
     const { data: det, error: detErr } = await supabase
-        .from("inscripciones_materia")
-        .select(`
-            inscripcion_id_inscripcion,
-            materia_id_materia,
-            estado,
-            estado_academico,
+    .from("inscripciones_materia")
+    .select(`
+        inscripcion_id_inscripcion,
+        materia_id_materia,
+        estado,
+        estado_academico,
+        fecha_inicio,
+        fecha_fin,
+        fecha_retiro,
+        materia:materia_id_materia (
+            id_materia,
+            nombre,
+            tipo,
+            monto,
+            dia,
+            hora_inicio,
+            hora_fin,
+            cupo,
             fecha_inicio,
             fecha_fin,
-            fecha_retiro,
-            materia:materia_id_materia (
-                id_materia,
-                nombre,
-                tipo,
-                monto,
-                dia,
-                hora_inicio,
-                hora_fin,
-                cupo,
-                fecha_inicio,
-                fecha_fin,
-                aula_id_aula,
-                usuario_ci,
-                carrera_codigo,
-                aula:aula_id_aula ( id_aula, nombre ),
-                docente:usuario_ci ( ci, nombre )
-            )
-        `)
-        .in("inscripcion_id_inscripcion", ids);
+            aula_id_aula,
+            usuario_ci,
+            carrera_codigo,
+            aula:aula_id_aula ( id_aula, nombre ),
+            docente:usuario_ci ( ci, nombre )
+        )
+    `)
+    .in("inscripcion_id_inscripcion", ids);
 
     if (detErr) throw detErr;
 
@@ -590,6 +547,8 @@ async function misInscripciones(ci_estudiante) {
 
     const materiasIds = (det || []).map((x) => x.materia_id_materia);
     const inscritosMap = await inscritosPorMaterias(materiasIds);
+
+    // requisitos
     const reqMap = await requisitosPorMaterias(materiasIds);
 
     for (const d of (det || [])) {
@@ -688,6 +647,7 @@ async function listarInscripcionesActivas(ci_estudiante) {
 }
 
 async function retirarMateria(ci_estudiante, inscripcion_id, materia_id) {
+    // 1. Verificar que la inscripción exista y pertenezca al estudiante
     const { data: inscripcion, error: insErr } = await supabase
         .from("inscripcion")
         .select("id_inscripcion, usuario_ci")
@@ -700,6 +660,7 @@ async function retirarMateria(ci_estudiante, inscripcion_id, materia_id) {
         throw makeError(404, "Inscripción no encontrada o no te pertenece");
     }
 
+    // 2. Verificar que la materia exista en esa inscripción
     const { data: detalle, error: detErr } = await supabase
         .from("inscripciones_materia")
         .select("inscripcion_id_inscripcion, materia_id_materia, estado, estado_academico, fecha_inicio, fecha_fin")
@@ -712,6 +673,7 @@ async function retirarMateria(ci_estudiante, inscripcion_id, materia_id) {
         throw makeError(404, "Materia no encontrada en esta inscripción");
     }
 
+    // 3. Validar que se pueda retirar
     if (!detalle.estado || !["INSCRITO", "PENDIENTE_PAGO"].includes(detalle.estado)) {
         throw makeError(400, "No se puede retirar una materia que no está inscrita o pendiente de pago");
     }
@@ -720,6 +682,15 @@ async function retirarMateria(ci_estudiante, inscripcion_id, materia_id) {
         throw makeError(400, "Esta materia ya fue retirada");
     }
 
+    // 4. Validar fecha límite (opcional - puedes descomentar si quieres validar fechas)
+    // const hoy = new Date();
+    // const fechaInicio = new Date(detalle.fecha_inicio);
+    // const diasDesdeInicio = Math.floor((hoy - fechaInicio) / (1000 * 60 * 60 * 24));
+    // if (diasDesdeInicio > 15) {
+    //     throw makeError(400, "Fecha límite de retiro excedida (máximo 15 días desde el inicio)");
+    // }
+
+    // 5. Actualizar el estado a RETIRADO y registrar fecha
     const { data: updated, error: updErr } = await supabase
         .from("inscripciones_materia")
         .update({
@@ -783,6 +754,7 @@ async function actualizarEstadosAcademicos() {
     };
 
     try {
+        // PASO 0: Corregir materias retiradas antiguas (migración de datos)
         const { data: materiasRetiradasAntiguas, error: errRetiradas } = await supabase
             .from("inscripciones_materia")
             .select("inscripcion_id_inscripcion, materia_id_materia")
@@ -810,19 +782,20 @@ async function actualizarEstadosAcademicos() {
             }
         }
 
+        // PASO A: Activar materias cuya fecha de inicio ya pasó o es hoy
         const { data: materiasIniciar, error: errIniciar } = await supabase
-            .from("inscripciones_materia")
-            .select(`
-                inscripcion_id_inscripcion,
-                materia_id_materia,
-                fecha_inicio,
-                fecha_fin,
-                inscripcion:inscripcion_id_inscripcion ( usuario_ci )
-            `)
-            .eq("estado", "INSCRITO")
-            .is("estado_academico", null)
-            .lte("fecha_inicio", hoy)
-            .gte("fecha_fin", hoy);
+    .from("inscripciones_materia")
+        .select(`
+            inscripcion_id_inscripcion,
+            materia_id_materia,
+            fecha_inicio,
+            fecha_fin,
+            inscripcion:inscripcion_id_inscripcion ( usuario_ci )
+        `)
+        .in("estado", ["INSCRITO", "PENDIENTE_PAGO"])
+        .is("estado_academico", null)
+        .lte("fecha_inicio", hoy)
+        .gte("fecha_fin", hoy);
 
         if (errIniciar) throw errIniciar;
 
@@ -845,6 +818,7 @@ async function actualizarEstadosAcademicos() {
             }
         }
 
+        // PASO B: Finalizar materias que tengan notas/asistencia registradas (sin esperar fecha_fin)
         const { data: materiasTerminar, error: errTerminar } = await supabase
             .from("inscripciones_materia")
             .select(`
@@ -853,7 +827,7 @@ async function actualizarEstadosAcademicos() {
                 fecha_fin,
                 inscripcion:inscripcion_id_inscripcion ( usuario_ci )
             `)
-            .eq("estado", "INSCRITO")
+            .in("estado", ["INSCRITO", "PENDIENTE_PAGO"])
             .eq("estado_academico", "EN_CURSO");
 
         if (errTerminar) throw errTerminar;
@@ -871,29 +845,37 @@ async function actualizarEstadosAcademicos() {
                     continue;
                 }
 
+                // Calcular promedio de notas y porcentaje de asistencia
                 const promedio = await calcularPromedioNotas(usuario_ci, mat.materia_id_materia);
                 const asistencia = await calcularPorcentajeAsistencia(usuario_ci, mat.materia_id_materia);
 
+                // Si no hay notas NI asistencias, no evaluar (queda EN_CURSO)
                 if (promedio === null && asistencia === null) {
                     continue;
                 }
 
                 let nuevoEstado = "REPROBADA";
 
+                // Caso 1: Tiene notas y asistencias
                 if (promedio !== null && asistencia !== null) {
                     if (promedio >= 51 && asistencia >= 70) {
                         nuevoEstado = "APROBADA";
                     }
-                } else if (promedio === null && asistencia !== null) {
+                }
+                // Caso 2: Solo tiene asistencias (cursos sin nota)
+                else if (promedio === null && asistencia !== null) {
                     if (asistencia >= 70) {
                         nuevoEstado = "APROBADA";
                     }
-                } else if (promedio !== null && asistencia === null) {
+                }
+                // Caso 3: Solo tiene notas (no debería pasar normalmente)
+                else if (promedio !== null && asistencia === null) {
                     if (promedio >= 51) {
                         nuevoEstado = "APROBADA";
                     }
                 }
 
+                // Actualizar estado académico
                 const { error: updErr } = await supabase
                     .from("inscripciones_materia")
                     .update({ estado_academico: nuevoEstado })
