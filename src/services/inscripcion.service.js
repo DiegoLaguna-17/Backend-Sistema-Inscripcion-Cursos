@@ -357,30 +357,21 @@ async function obtenerDetalleMateria(ci_estudiante, id_materia) {
     };
 }
 
-async function obtenerDetalleExtracurricular(ci_estudiante, id_materia) {
-    const materia = await materiaExiste(id_materia);
-    if (!materia) throw makeError(404, "No se encontraron registros");
+async function obtenerDetalleExtracurricular(req, res) {
+    try {
+        const ci = req.usuario?.ci;
+        const id = req.params.id;
 
-    const esExtra = materia.tipo === "EXTRACURRICULAR" && materia.carrera_codigo === null;
-    if (!esExtra) throw makeError(403, "La materia solicitada no es extracurricular.");
-
-    const inscritosMap = await inscritosPorMaterias([materia.id_materia]);
-    const inscritos = inscritosMap[materia.id_materia] || 0;
-
-    const motivos = [];
-
-    const okCupo = await cupoDisponible(materia);
-    if (!okCupo) motivos.push("No hay cupos disponibles");
-
-    const yaInscrito = await yaInscritoEnMateria(ci_estudiante, materia.id_materia);
-    if (yaInscrito) motivos.push("Ya estás inscrito o tienes un pago pendiente en esta materia");
-
-    return {
-        materia: mapMateriaLikeUI(materia, inscritos, []),
-        requisitos: [],
-        puede_inscribirse: motivos.length === 0,
-        motivos_bloqueo: motivos,
-    };
+        const detalle = await service.obtenerDetalleExtracurricular(ci, id);
+        return ok(res, "Datos obtenidos correctamente", detalle, 200);
+    } catch (err) {
+        const status = err.status || 500;
+        if (status === 404) return fail(res, err.message || "No se encontraron registros", null, 404);
+        if (status === 400) return fail(res, err.message, err.data || null, 400);
+        if (status === 403) return fail(res, err.message, err.data || null, 403);
+        if (status === 409) return fail(res, err.message, err.data || null, 409);
+        return fail(res, "Error interno del servidor", null, 500);
+    }
 }
 
 async function crearInscripcion(ci_estudiante, payload) {
