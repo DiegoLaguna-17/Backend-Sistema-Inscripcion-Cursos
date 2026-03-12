@@ -194,9 +194,9 @@ async function yaInscritoEnMateria(ci_estudiante, id_materia) {
     return !!data;
 }
 
-async function retiroEnMismoCiclo(ci_estudiante, id_materia) {
-    const hoy = hoyISO();
-
+// Bloquea reinscripción si el estudiante retiró esa misma materia
+// y las fechas del curso retirado se solapan con las de la materia actual
+async function retiroEnMismoCiclo(ci_estudiante, materia) {
     const { data: ins, error: insErr } = await supabase
         .from("inscripcion")
         .select("id_inscripcion")
@@ -217,14 +217,21 @@ async function retiroEnMismoCiclo(ci_estudiante, id_materia) {
             fecha_retiro
         `)
         .in("inscripcion_id_inscripcion", ids)
-        .eq("materia_id_materia", String(id_materia))
+        .eq("materia_id_materia", String(materia.id_materia))
         .eq("estado", "RETIRADO");
 
     if (error) throw error;
+    if (!data || data.length === 0) return false;
 
-    return (data || []).some((row) => {
-        if (!row.fecha_inicio || !row.fecha_fin) return true;
-        return row.fecha_inicio <= hoy && row.fecha_fin >= hoy;
+    const nuevaInicio = materia.fecha_inicio;
+    const nuevaFin = materia.fecha_fin;
+
+    return data.some((row) => {
+        if (!row.fecha_inicio || !row.fecha_fin || !nuevaInicio || !nuevaFin) {
+            return false;
+        }
+
+        return row.fecha_inicio <= nuevaFin && row.fecha_fin >= nuevaInicio;
     });
 }
 
@@ -381,7 +388,7 @@ async function obtenerDetalleMateria(ci_estudiante, id_materia) {
     const yaInscrito = await yaInscritoEnMateria(ci_estudiante, materia.id_materia);
     if (yaInscrito) motivos.push("Ya estás inscrito o tienes un pago pendiente en esta materia");
 
-    const retiroMismoCiclo = await retiroEnMismoCiclo(ci_estudiante, materia.id_materia);
+    const retiroMismoCiclo = await retiroEnMismoCiclo(ci_estudiante, materia);
     if (retiroMismoCiclo) {
         motivos.push("Retiraste esta materia en el ciclo actual y no puedes volver a inscribirte hasta un nuevo ciclo");
     }
@@ -412,7 +419,7 @@ async function obtenerDetalleExtracurricular(ci_estudiante, id_materia) {
     const yaInscrito = await yaInscritoEnMateria(ci_estudiante, materia.id_materia);
     if (yaInscrito) motivos.push("Ya estás inscrito o tienes un pago pendiente en esta materia");
 
-    const retiroMismoCiclo = await retiroEnMismoCiclo(ci_estudiante, materia.id_materia);
+    const retiroMismoCiclo = await retiroEnMismoCiclo(ci_estudiante, materia);
     if (retiroMismoCiclo) {
         motivos.push("Retiraste esta materia en el ciclo actual y no puedes volver a inscribirte hasta un nuevo ciclo");
     }
@@ -474,7 +481,7 @@ async function crearInscripcion(ci_estudiante, payload) {
             continue;
         }
 
-        const retiradaMismoCiclo = await retiroEnMismoCiclo(ci_estudiante, materia.id_materia);
+        const retiradaMismoCiclo = await retiroEnMismoCiclo(ci_estudiante, materia);
         if (retiradaMismoCiclo) {
             errores.push({
                 materia: id,
@@ -503,7 +510,7 @@ async function crearInscripcion(ci_estudiante, payload) {
         if (!okReq) continue;
 
         const estado = Number(materia.monto) > 0 ? "PENDIENTE_PAGO" : "INSCRITO";
-        
+
         let estado_academico = null;
         if (materia.fecha_inicio && materia.fecha_inicio <= hoyISO()) {
             estado_academico = "EN_CURSO";
