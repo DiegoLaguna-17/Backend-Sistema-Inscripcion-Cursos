@@ -162,10 +162,11 @@ async function estudianteCumpleRequisito(ci_estudiante, id_requisito) {
 
     const { data: det, error: detErr } = await supabase
         .from("inscripciones_materia")
-        .select("materia_id_materia, estado")
+        .select("materia_id_materia, estado, estado_academico")
         .in("inscripcion_id_inscripcion", ids)
         .eq("materia_id_materia", String(id_requisito))
-        .in("estado", ["INSCRITO"])
+        .eq("estado_academico", "APROBADO")
+        .limit(1)
         .maybeSingle();
 
     if (detErr) throw detErr;
@@ -497,17 +498,23 @@ async function crearInscripcion(ci_estudiante, payload) {
         }
 
         const reqs = await obtenerRequisitos(materia.id_materia);
-        let okReq = true;
+        const requisitosIncumplidos = [];
 
         for (const r of reqs) {
             const cumple = await estudianteCumpleRequisito(ci_estudiante, r.requisito_id_materia);
             if (!cumple) {
-                okReq = false;
-                errores.push({ materia: id, error: `No cumple requisito ${r.requisito_id_materia}` });
+                requisitosIncumplidos.push(r.requisito?.nombre || r.requisito_id_materia);
             }
         }
 
-        if (!okReq) continue;
+        if (requisitosIncumplidos.length > 0) {
+            const lista = requisitosIncumplidos.join(", ");
+            const mensaje = requisitosIncumplidos.length === 1
+                ? `No cumples el prerequisito: ${lista}`
+                : `No cumples los prerequisitos: ${lista}`;
+            errores.push({ materia: id, error: mensaje });
+            continue;
+        }
 
         const estado = Number(materia.monto) > 0 ? "PENDIENTE_PAGO" : "INSCRITO";
 
