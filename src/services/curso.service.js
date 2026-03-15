@@ -16,6 +16,7 @@ const SELECT_CURSO = `
     fecha_fin,
     monto,
     aula_id_aula,
+    estado,
     aula:aula_id_aula ( id_aula, nombre ),
     carrera:carrera_codigo ( codigo, nombre, descripcion, duracion ),
     materia_requisito!materia_id_materia ( 
@@ -82,6 +83,7 @@ async function existeCursoPorId(id_materia) {
         .from("materia")
         .select("id_materia")
         .eq("id_materia", String(id_materia))
+        .eq("estado", true)
         .maybeSingle();
     if (error) throw error;
     return !!data;
@@ -92,6 +94,7 @@ async function existeCursoMismoNombreEnCarrera(nombre, carrera_codigo, exceptId 
         .from("materia")
         .select("id_materia")
         .eq("carrera_codigo", carrera_codigo)
+        .eq("estado", true)
         .ilike("nombre", nombre);
 
     // ✅ id_materia ahora es TEXT
@@ -107,6 +110,7 @@ async function getCursoById(id) {
         .from("materia")
         .select(SELECT_CURSO)
         .eq("id_materia", String(id)) // ✅ TEXT
+        .eq("estado", true)
         .maybeSingle();
 
     if (error) throw error;
@@ -236,6 +240,7 @@ async function crearCurso(payload) {
             fecha_fin: payload.fecha_fin,
             monto: Number(payload.monto),
             aula_id_aula: Number(payload.aula_id_aula),
+            estado:true,
         }])
         .select(SELECT_CURSO)
         .single();
@@ -267,6 +272,7 @@ async function listarCursos({ carrera_codigo } = {}) {
     let q = supabase
         .from("materia")
         .select(SELECT_CURSO)
+        .eq("estado", true)
         .order("id_materia", { ascending: false })
         .not("carrera_codigo", "is", null);
 
@@ -474,16 +480,22 @@ async function actualizarCurso(id, payload) {
 // Eliminar curso (id texto)
 async function eliminarCurso(id) {
     const actual = await getCursoById(id);
-    if (!actual) throw makeError(404, "No se puede eliminar: el registro no existe");
-
-    const { error } = await supabase
+    if (!actual) {
+        throw makeError(404, "No se puede eliminar: el registro no existe");
+    }
+    const { data, error } = await supabase
         .from("materia")
-        .delete()
-        .eq("id_materia", String(id)); // ✅ TEXT
+        .update({ estado: false })
+        .eq("id_materia", String(id))
+        .select();
 
-    if (error) throw error;
+    if (error) {
+        throw error;
+    }
 
-    return { deleted: true, id: String(id) };
+    const cursoActualizado = await getCursoById(id);
+    
+    return { deleted: true, id: String(id), data: cursoActualizado };
 }
 
 module.exports = {

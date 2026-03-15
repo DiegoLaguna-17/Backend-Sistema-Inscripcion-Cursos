@@ -117,6 +117,7 @@ async function materiaExiste(id_materia) {
             docente:usuario_ci ( ci, nombre )
         `)
         .eq("id_materia", String(id_materia))
+        .eq("estado", true)
         .maybeSingle();
 
     if (error) throw error;
@@ -264,6 +265,7 @@ async function listarMateriasDisponibles(ci_estudiante, opts = {}) {
             docente:usuario_ci ( ci, nombre )
         `)
         .eq("carrera_codigo", user.carrera_usuario)
+        .eq("estado", true)
         .order("nombre", { ascending: true });
 
     if (opts.q) q = q.ilike("nombre", `%${opts.q}%`);
@@ -318,6 +320,7 @@ async function listarExtracurriculares(opts = {}) {
         `)
         .eq("tipo", "EXTRACURRICULAR")
         .is("carrera_codigo", null)
+        .eq("estado", true)
         .order("nombre", { ascending: true });
 
     if (opts.q) q = q.ilike("nombre", `%${opts.q}%`);
