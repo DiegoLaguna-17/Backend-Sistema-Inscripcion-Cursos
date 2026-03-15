@@ -113,19 +113,33 @@ async function obtenerNotasMateria(req,res,next){
         const estudianteId = req.usuario.ci;
     
         const result = await service.obtenerNotasPorMateria(
-          estudianteId,
-          materiaId
-        );
-    
+                estudianteId,
+                materiaId
+                );
+            
+                res.status(200).json({
+                success: true,
+                message: "Datos obtenidos correctamente",
+                data: result,
+                });
+            
+            } catch (error) {
+                next(error);
+            }
+}
+async function obtenerMiPerfil(req, res, next) {
+    try {
+        const ci = req.usuario.ci;
+        const perfil = await service.getMiPerfil(ci);
+
         res.status(200).json({
-          success: true,
-          message: "Datos obtenidos correctamente",
-          data: result,
+            success: true,
+            message: "Datos obtenidos correctamente",
+            data: perfil
         });
-    
-      } catch (error) {
-        next(error);
-      }
+    } catch (err) {
+        next(err);
+    }
 }
 
 module.exports = {
@@ -137,5 +151,6 @@ module.exports = {
     asignarCarrera,
     inscribirseCarrera,
     obtenerMiCarrera,
-    obtenerNotasMateria
+    obtenerNotasMateria,
+    obtenerMiPerfil
 };
