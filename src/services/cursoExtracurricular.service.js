@@ -20,7 +20,8 @@ fecha_inicio,
 fecha_fin,
 monto,
 aula_id_aula,
-carrera_codigo
+carrera_codigo,
+estado
 `;
 
 function validarPayloadCrear(p) {
@@ -94,6 +95,7 @@ async function existeDuplicadoNombreExtra(nombre) {
         .select("id_materia")
         .ilike("nombre", nombre)
         .eq("tipo", "EXTRACURRICULAR")
+        .eq("estado", true)
         .is("carrera_codigo", null)
         .maybeSingle();
 
@@ -126,6 +128,7 @@ const insertData = {
     fecha_fin: payload.fecha_fin,
     monto: Number(payload.monto),
     aula_id_aula: Number(payload.aula_id_aula),
+    estado: true,
 };
 
 const { data, error } = await supabase
@@ -143,6 +146,7 @@ const { data, error } = await supabase
     .from("materia")
     .select(SELECT_CURSO_EXTRA)
     .eq("tipo", "EXTRACURRICULAR")
+    .eq("estado", true)
     .is("carrera_codigo", null)
     .order("nombre", { ascending: true });
 
@@ -156,6 +160,7 @@ const { data, error } = await supabase
     .select(SELECT_CURSO_EXTRA)
     .eq("id_materia", String(id))
     .eq("tipo", "EXTRACURRICULAR")
+    .eq("estado", true)
     .is("carrera_codigo", null)
     .maybeSingle();
 
@@ -232,7 +237,7 @@ await obtenerPorId(id);
 
 const { error } = await supabase
     .from("materia")
-    .delete()
+    .update({ estado: false })
     .eq("id_materia", String(id));
 
     if (error) throw error;
