@@ -486,10 +486,118 @@ async function eliminarCurso(id) {
     return { deleted: true, id: String(id) };
 }
 
+async function construirDatosControlPagosCurso(id) {
+    const { data: curso, error: cursoErr } = await supabase
+        .from("materia")
+        .select("id_materia, nombre, monto, cupo")
+        .eq("id_materia", String(id))
+        .maybeSingle();
+
+    if (cursoErr) throw cursoErr;
+    if (!curso) throw makeError(404, "No se encontró el registro");
+
+    const { data: detalles, error: detErr } = await supabase
+        .from("inscripciones_materia")
+        .select(`
+            inscripcion_id_inscripcion,
+            estado,
+            estado_academico,
+            fecha_retiro,
+            inscripcion:inscripcion_id_inscripcion (
+                id_inscripcion,
+                usuario:usuario_ci ( nombre )
+            )
+        `)
+        .eq("materia_id_materia", String(id))
+        .order("inscripcion_id_inscripcion", { ascending: false });
+
+    if (detErr) throw detErr;
+
+    const rows = detalles || [];
+    const inscripcionesIds = [
+        ...new Set(rows.map((r) => Number(r.inscripcion_id_inscripcion)).filter((v) => !Number.isNaN(v))),
+    ];
+
+    let inscripcionesPagadas = new Set();
+
+    if (inscripcionesIds.length > 0) {
+        const { data: pagos, error: pagosErr } = await supabase
+            .from("pagos")
+            .select("inscripcion_id_inscripcion, estado")
+            .in("inscripcion_id_inscripcion", inscripcionesIds)
+            .eq("estado", "PAGADO");
+
+        if (pagosErr) throw pagosErr;
+
+        inscripcionesPagadas = new Set(
+            (pagos || []).map((p) => Number(p.inscripcion_id_inscripcion))
+        );
+    }
+
+    const montoMateria = Number(curso.monto || 0);
+
+    const estudiantes = rows.map((row) => {
+        const idInscripcion = Number(row.inscripcion_id_inscripcion);
+        const tienePago = inscripcionesPagadas.has(idInscripcion);
+
+        const monto_pagado =
+            montoMateria > 0 && row.estado !== "PENDIENTE_PAGO" && tienePago
+                ? montoMateria
+                : 0;
+
+        return {
+            nombre_completo: row.inscripcion?.usuario?.nombre || "Sin nombre",
+            estado_materia: row.estado,
+            estado_academico: row.estado_academico,
+            fecha_retiro: row.fecha_retiro,
+            monto_pagado,
+        };
+    });
+
+    const inscritos = rows.filter(
+        (row) => row.estado === "INSCRITO" || row.estado === "PENDIENTE_PAGO"
+    ).length;
+
+    const cupoTotal = Number(curso.cupo || 0);
+    const cupos_restantes = Math.max(cupoTotal - inscritos, 0);
+    const recaudado = estudiantes.reduce((acc, est) => acc + Number(est.monto_pagado || 0), 0);
+
+    return {
+        curso: {
+            id_materia: curso.id_materia,
+            nombre: curso.nombre,
+        },
+        estudiantes,
+        resumen: {
+            inscritos,
+            cupos_restantes,
+            recaudado,
+        },
+    };
+}
+
+async function obtenerEstudiantesPagosCurso(id) {
+    const data = await construirDatosControlPagosCurso(id);
+    return {
+        curso: data.curso,
+        estudiantes: data.estudiantes,
+    };
+}
+
+async function obtenerResumenPagosCurso(id) {
+    const data = await construirDatosControlPagosCurso(id);
+    return {
+        curso: data.curso,
+        resumen: data.resumen,
+    };
+}
+
 module.exports = {
     crearCurso,
     listarCursos,
     obtenerCurso,
     actualizarCurso,
     eliminarCurso,
+    obtenerEstudiantesPagosCurso,
+    obtenerResumenPagosCurso,
 };
