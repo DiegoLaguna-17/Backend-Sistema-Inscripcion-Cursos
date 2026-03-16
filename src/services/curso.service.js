@@ -16,6 +16,7 @@ const SELECT_CURSO = `
     fecha_fin,
     monto,
     aula_id_aula,
+    estado,
     aula:aula_id_aula ( id_aula, nombre ),
     carrera:carrera_codigo ( codigo, nombre, descripcion, duracion ),
     materia_requisito!materia_id_materia ( 
@@ -82,6 +83,7 @@ async function existeCursoPorId(id_materia) {
         .from("materia")
         .select("id_materia")
         .eq("id_materia", String(id_materia))
+        .eq("estado", true)
         .maybeSingle();
     if (error) throw error;
     return !!data;
@@ -92,6 +94,7 @@ async function existeCursoMismoNombreEnCarrera(nombre, carrera_codigo, exceptId 
         .from("materia")
         .select("id_materia")
         .eq("carrera_codigo", carrera_codigo)
+        .eq("estado", true)
         .ilike("nombre", nombre);
 
     // ✅ id_materia ahora es TEXT
@@ -107,6 +110,7 @@ async function getCursoById(id) {
         .from("materia")
         .select(SELECT_CURSO)
         .eq("id_materia", String(id)) // ✅ TEXT
+        .eq("estado", true)
         .maybeSingle();
 
     if (error) throw error;
@@ -236,6 +240,7 @@ async function crearCurso(payload) {
             fecha_fin: payload.fecha_fin,
             monto: Number(payload.monto),
             aula_id_aula: Number(payload.aula_id_aula),
+            estado:true,
         }])
         .select(SELECT_CURSO)
         .single();
@@ -267,6 +272,7 @@ async function listarCursos({ carrera_codigo } = {}) {
     let q = supabase
         .from("materia")
         .select(SELECT_CURSO)
+        .eq("estado", true)
         .order("id_materia", { ascending: false })
         .not("carrera_codigo", "is", null);
 
@@ -474,16 +480,128 @@ async function actualizarCurso(id, payload) {
 // Eliminar curso (id texto)
 async function eliminarCurso(id) {
     const actual = await getCursoById(id);
-    if (!actual) throw makeError(404, "No se puede eliminar: el registro no existe");
-
-    const { error } = await supabase
+    if (!actual) {
+        throw makeError(404, "No se puede eliminar: el registro no existe");
+    }
+    const { data, error } = await supabase
         .from("materia")
-        .delete()
-        .eq("id_materia", String(id)); // ✅ TEXT
+        .update({ estado: false })
+        .eq("id_materia", String(id))
+        .select();
 
-    if (error) throw error;
+    if (error) {
+        throw error;
+    }
 
-    return { deleted: true, id: String(id) };
+    const cursoActualizado = await getCursoById(id);
+    
+    return { deleted: true, id: String(id), data: cursoActualizado };
+}
+
+async function construirDatosControlPagosCurso(id) {
+    const { data: curso, error: cursoErr } = await supabase
+        .from("materia")
+        .select("id_materia, nombre, monto, cupo")
+        .eq("id_materia", String(id))
+        .maybeSingle();
+
+    if (cursoErr) throw cursoErr;
+    if (!curso) throw makeError(404, "No se encontró el registro");
+
+    const { data: detalles, error: detErr } = await supabase
+        .from("inscripciones_materia")
+        .select(`
+            inscripcion_id_inscripcion,
+            estado,
+            estado_academico,
+            fecha_retiro,
+            inscripcion:inscripcion_id_inscripcion (
+                id_inscripcion,
+                usuario:usuario_ci ( nombre )
+            )
+        `)
+        .eq("materia_id_materia", String(id))
+        .order("inscripcion_id_inscripcion", { ascending: false });
+
+    if (detErr) throw detErr;
+
+    const rows = detalles || [];
+    const inscripcionesIds = [
+        ...new Set(rows.map((r) => Number(r.inscripcion_id_inscripcion)).filter((v) => !Number.isNaN(v))),
+    ];
+
+    let inscripcionesPagadas = new Set();
+
+    if (inscripcionesIds.length > 0) {
+        const { data: pagos, error: pagosErr } = await supabase
+            .from("pagos")
+            .select("inscripcion_id_inscripcion, estado")
+            .in("inscripcion_id_inscripcion", inscripcionesIds)
+            .eq("estado", "PAGADO");
+
+        if (pagosErr) throw pagosErr;
+
+        inscripcionesPagadas = new Set(
+            (pagos || []).map((p) => Number(p.inscripcion_id_inscripcion))
+        );
+    }
+
+    const montoMateria = Number(curso.monto || 0);
+
+    const estudiantes = rows.map((row) => {
+        const idInscripcion = Number(row.inscripcion_id_inscripcion);
+        const tienePago = inscripcionesPagadas.has(idInscripcion);
+
+        const monto_pagado =
+            montoMateria > 0 && row.estado !== "PENDIENTE_PAGO" && tienePago
+                ? montoMateria
+                : 0;
+
+        return {
+            nombre_completo: row.inscripcion?.usuario?.nombre || "Sin nombre",
+            estado_materia: row.estado,
+            estado_academico: row.estado_academico,
+            fecha_retiro: row.fecha_retiro,
+            monto_pagado,
+        };
+    });
+
+    const inscritos = rows.filter(
+        (row) => row.estado === "INSCRITO" || row.estado === "PENDIENTE_PAGO"
+    ).length;
+
+    const cupoTotal = Number(curso.cupo || 0);
+    const cupos_restantes = Math.max(cupoTotal - inscritos, 0);
+    const recaudado = estudiantes.reduce((acc, est) => acc + Number(est.monto_pagado || 0), 0);
+
+    return {
+        curso: {
+            id_materia: curso.id_materia,
+            nombre: curso.nombre,
+        },
+        estudiantes,
+        resumen: {
+            inscritos,
+            cupos_restantes,
+            recaudado,
+        },
+    };
+}
+
+async function obtenerEstudiantesPagosCurso(id) {
+    const data = await construirDatosControlPagosCurso(id);
+    return {
+        curso: data.curso,
+        estudiantes: data.estudiantes,
+    };
+}
+
+async function obtenerResumenPagosCurso(id) {
+    const data = await construirDatosControlPagosCurso(id);
+    return {
+        curso: data.curso,
+        resumen: data.resumen,
+    };
 }
 
 async function construirDatosControlPagosCurso(id) {

@@ -66,6 +66,12 @@ router.get(
     estudianteController.listarEstudiantes
 );
 
+router.get(
+    "/mi-perfil",
+    verificarAutenticacion,
+    estudianteController.obtenerMiPerfil
+);
+
 // Obtener por CI
 router.get(
     "/:ci",
@@ -74,10 +80,10 @@ router.get(
     estudianteController.obtenerEstudiantePorCI
 );
 
-
 router.get(
-  "/mis-notas/:materiaId",
-  verificarAutenticacion,
-  estudianteController.obtenerNotasMateria
+    "/mis-notas/:materiaId",
+    verificarAutenticacion,
+    estudianteController.obtenerNotasMateria
 );
+
 module.exports = router;
