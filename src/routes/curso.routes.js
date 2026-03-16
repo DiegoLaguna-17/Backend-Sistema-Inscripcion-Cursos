@@ -34,6 +34,22 @@ router.get(
     controller.obtenerCurso
 );
 
+router.get(
+    "/:id/estudiantes-pagos",
+    verificarAutenticacion,
+    verificarRol([1]),
+    verificarPermiso("ver cursos"),
+    controller.obtenerEstudiantesPagosCurso
+);
+
+router.get(
+    "/:id/resumen-pagos",
+    verificarAutenticacion,
+    verificarRol([1]),
+    verificarPermiso("ver cursos"),
+    controller.obtenerResumenPagosCurso
+);
+
 router.put(
     "/:id",
     verificarAutenticacion,
