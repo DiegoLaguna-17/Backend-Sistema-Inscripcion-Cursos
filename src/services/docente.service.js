@@ -337,6 +337,7 @@ class DocenteService {
             ci,
             nombre,
             notas!left (
+              id_nota,
               calificacion,
               materia_id_materia
             )
@@ -356,7 +357,9 @@ class DocenteService {
           nombre: usuario?.nombre ?? "Sin nombre",
           notas: (usuario?.notas || [])
             .filter((n) => n.materia_id_materia === id_materia)
-            .map((n) => n.calificacion),
+            .map((n) => ({
+              id_nota:n.id_nota,
+              calificacion:n.calificacion})),
         };
       });
 
