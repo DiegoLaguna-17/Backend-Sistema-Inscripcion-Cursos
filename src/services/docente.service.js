@@ -345,7 +345,8 @@ class DocenteService {
         )
       `,
         )
-        .eq("materia_id_materia", id_materia);
+        .eq("materia_id_materia", id_materia)
+        .neq("estado","RETIRADO");
 
       if (error) throw error;
 
