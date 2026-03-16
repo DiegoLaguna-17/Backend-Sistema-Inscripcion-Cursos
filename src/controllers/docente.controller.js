@@ -193,85 +193,87 @@ class DocenteController {
   }
 
   // Editar docente (solo campos permitidos)
-  async editarDocente(req, res) {
-    try {
-      const { ci } = req.params;
-      const datosActualizar = req.body;
+ async editarDocente(req, res) {
+  try {
+    console.log("ENTRO A editarDocente");
+    console.log("editarDocente PARAMS:", req.params);
+    console.log("editarDocente BODY:", req.body);
 
-      if (!ci) {
-        return res.status(400).json({
-          exito: false,
-          mensaje: "Se requiere el carnet de identidad",
-          errores: ["CI no proporcionado"],
-        });
-      }
+    const { ci } = req.params;
+    const datosActualizar = req.body;
 
-      // Validar que solo se envíen campos permitidos
-      const camposPermitidos = ["telefono", "direccion", "contrasenia"];
-      const camposEnviados = Object.keys(datosActualizar);
-      const camposInvalidos = camposEnviados.filter(
-        (campo) => !camposPermitidos.includes(campo),
-      );
-
-      if (camposInvalidos.length > 0) {
-        return res.status(400).json({
-          exito: false,
-          mensaje: "Campos no permitidos para edición",
-          errores: [
-            `Campos inválidos: ${camposInvalidos.join(", ")}. Permitidos: ${camposPermitidos.join(", ")}`,
-          ],
-        });
-      }
-
-      // Validaciones específicas
-      if (
-        datosActualizar.contrasenia &&
-        datosActualizar.contrasenia.length < 6
-      ) {
-        return res.status(400).json({
-          exito: false,
-          mensaje: "La contraseña debe tener al menos 6 caracteres",
-          errores: ["Contraseña muy corta"],
-        });
-      }
-
-      if (datosActualizar.telefono && datosActualizar.telefono.length < 8) {
-        return res.status(400).json({
-          exito: false,
-          mensaje: "El teléfono debe tener al menos 8 caracteres",
-          errores: ["Teléfono inválido"],
-        });
-      }
-
-      const resultado = await docenteService.editarDocente(ci, datosActualizar);
-
-      res.json(resultado);
-    } catch (error) {
-      console.error("Error en editarDocente:", error);
-
-      if (error.message.includes("No se encontró")) {
-        return res.status(404).json({
-          exito: false,
-          mensaje: error.message,
-          errores: ["Docente no encontrado"],
-        });
-      }
-
-      if (error.message.includes("No se proporcionaron")) {
-        return res.status(400).json({
-          exito: false,
-          mensaje: error.message,
-          errores: ["Sin campos para actualizar"],
-        });
-      }
-
-      res.status(500).json({
+    if (!ci) {
+      return res.status(400).json({
         exito: false,
-        mensaje: "Error al editar el docente",
-        errores: [error.message],
+        mensaje: "Se requiere el carnet de identidad",
+        errores: ["CI no proporcionado"],
       });
     }
+
+    const camposPermitidos = ["telefono", "direccion", "contrasenia"];
+    const camposEnviados = Object.keys(datosActualizar);
+    const camposInvalidos = camposEnviados.filter(
+      (campo) => !camposPermitidos.includes(campo),
+    );
+
+    if (camposInvalidos.length > 0) {
+      return res.status(400).json({
+        exito: false,
+        mensaje: "Campos no permitidos para edición",
+        errores: [
+          `Campos inválidos: ${camposInvalidos.join(", ")}. Permitidos: ${camposPermitidos.join(", ")}`,
+        ],
+      });
+    }
+
+    if (
+      datosActualizar.contrasenia &&
+      datosActualizar.contrasenia.length < 6
+    ) {
+      return res.status(400).json({
+        exito: false,
+        mensaje: "La contraseña debe tener al menos 6 caracteres",
+        errores: ["Contraseña muy corta"],
+      });
+    }
+
+    if (datosActualizar.telefono && datosActualizar.telefono.length < 8) {
+      return res.status(400).json({
+        exito: false,
+        mensaje: "El teléfono debe tener al menos 8 caracteres",
+        errores: ["Teléfono inválido"],
+      });
+    }
+
+    const resultado = await docenteService.editarDocente(ci, datosActualizar);
+
+    res.json(resultado);
+  } catch (error) {
+    console.error("Error en editarDocente:", error);
+
+    if (error.message.includes("No se encontró")) {
+      return res.status(404).json({
+        exito: false,
+        mensaje: error.message,
+        errores: ["Docente no encontrado"],
+      });
+    }
+
+    if (error.message.includes("No se proporcionaron")) {
+      return res.status(400).json({
+        exito: false,
+        mensaje: error.message,
+        errores: ["Sin campos para actualizar"],
+      });
+    }
+
+    res.status(500).json({
+      exito: false,
+      mensaje: "Error al editar el docente",
+      errores: [error.message],
+    });
   }
+}
 
   // Eliminar docente (eliminación lógica)
   async eliminarDocente(req, res) {
@@ -402,6 +404,60 @@ class DocenteController {
       });
     }
   }
+ async editarNotas(req, res) {
+  try {
+    console.log("ENTRO A editarNotas");
+    console.log("editarNotas BODY:", req.body);
+    console.log("editarNotas USUARIO:", req.usuario);
+
+    const { id_materia, notas } = req.body;
+
+    if (!id_materia || !notas || !Array.isArray(notas)) {
+      return res.status(400).json({
+        exito: false,
+        mensaje:
+          "Cuerpo de solicitud inválido. Se requiere id_materia y el arreglo de notas.",
+        errores: ["Payload inválido"],
+      });
+    }
+
+    const resultado = await docenteService.editarNotasEstudiantes(
+      id_materia,
+      notas,
+      req.usuario?.ci,
+    );
+
+    res.json(resultado);
+  } catch (error) {
+    console.error("Error en editarNotas controller:", error);
+
+    if (error.message.includes("no pertenece al docente autenticado")) {
+      return res.status(403).json({
+        exito: false,
+        mensaje: error.message,
+        errores: [error.message],
+      });
+    }
+
+    if (
+      error.message.includes("no están inscritos") ||
+      error.message.includes("no existe") ||
+      error.message.includes("inválida")
+    ) {
+      return res.status(400).json({
+        exito: false,
+        mensaje: "Fallo en la validación de edición de notas",
+        errores: [error.message],
+      });
+    }
+
+    res.status(500).json({
+      exito: false,
+      mensaje: "Error interno al editar notas",
+      errores: [error.message],
+    });
+  }
+}
 }
 
 module.exports = new DocenteController();

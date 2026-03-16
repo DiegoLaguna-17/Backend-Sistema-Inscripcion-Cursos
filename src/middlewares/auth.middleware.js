@@ -44,6 +44,13 @@ const verificarRol = (rolesPermitidos) => {
 const verificarPermiso = (permiso) => {
     return async (req, res, next) => {
         try {
+            console.log("MIDDLEWARE verificarPermiso ->", {
+                method: req.method,
+                url: req.originalUrl,
+                permisoEvaluado: permiso,
+                usuario: req.usuario?.ci
+            });
+
             if (!req.usuario) {
                 return res.status(401).json({
                     exito: false,
