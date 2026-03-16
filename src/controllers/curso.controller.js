@@ -79,10 +79,34 @@ async function eliminarCurso(req, res) {
     }
 }
 
+async function obtenerEstudiantesPagosCurso(req, res) {
+    try {
+        const data = await service.obtenerEstudiantesPagosCurso(req.params.id);
+        return ok(res, "Datos obtenidos correctamente", data, 200);
+    } catch (err) {
+        const status = err.status || 500;
+        if (status === 404) return fail(res, "No se encontraron registros", null, 404);
+        return fail(res, "Error interno del servidor", null, 500);
+    }
+}
+
+async function obtenerResumenPagosCurso(req, res) {
+    try {
+        const data = await service.obtenerResumenPagosCurso(req.params.id);
+        return ok(res, "Datos obtenidos correctamente", data, 200);
+    } catch (err) {
+        const status = err.status || 500;
+        if (status === 404) return fail(res, "No se encontraron registros", null, 404);
+        return fail(res, "Error interno del servidor", null, 500);
+    }
+}
+
 module.exports = {
     crearCurso,
     listarCursos,
     obtenerCurso,
     actualizarCurso,
     eliminarCurso,
+    obtenerEstudiantesPagosCurso,
+    obtenerResumenPagosCurso,
 };
