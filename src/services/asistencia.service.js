@@ -42,7 +42,8 @@ async function obtenerHistorialMateria(materiaId) {
       )
     )
   `)
-  .eq("materia_id_materia", materiaId);
+  .eq("materia_id_materia", materiaId)
+  .eq("estado_academico","EN_CURSO");
 
     if (error) throw error;
 
