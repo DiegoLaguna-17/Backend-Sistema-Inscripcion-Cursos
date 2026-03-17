@@ -26,19 +26,35 @@ app.use('/api', routes);
 // Middleware de manejo de errores
 app.use(errorMiddleware);
 
+const nodemailer = require("nodemailer");
+
+const transporter = nodemailer.createTransport({
+  host: "smtp.gmail.com",
+  port: 587,
+  secure: false,
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+});
+
 app.get("/test-mail-simple", async (req, res) => {
   try {
+    console.log("=== TEST MAIL ===");
+    console.log("USER:", process.env.EMAIL_USER);
+    console.log("PASS:", process.env.EMAIL_PASS ? "OK" : "NO");
+
     const info = await transporter.sendMail({
       from: process.env.EMAIL_USER,
-      to: "tuemail@gmail.com",
+      to: "diegolagunalevy@gmail.com",
       subject: "Test simple",
       text: "Sin puppeteer 🚀"
     });
 
-    console.log(info);
+    console.log("Correo enviado:", info);
     res.send("Correo OK");
   } catch (err) {
-    console.error(err);
+    console.error("ERROR MAIL:", err);
     res.status(500).send(err.message);
   }
 });
