@@ -1,4 +1,48 @@
-function plantillaCertificadoHTML(){
+const puppeteer = require("puppeteer");
+const fs = require("fs");
+const path = require("path");
+
+function escapeHtml(str = "") {
+    return String(str)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+}
+
+function loadLogoDataUri() {
+    const candidates = [
+        path.resolve(process.cwd(), "src", "assets", "logo_sixsevenacademy.png"),
+        path.resolve(process.cwd(), "assets", "logo_sixsevenacademy.png"),
+        path.resolve(process.cwd(), "src", "assets", "sixsevenacademy.png"),
+        path.resolve(process.cwd(), "assets", "sixsevenacademy.png"),
+    ];
+
+    const logoPath = candidates.find((p) => fs.existsSync(p));
+    if (!logoPath) return null;
+
+    const file = fs.readFileSync(logoPath);
+    const base64 = file.toString("base64");
+
+    return `data:image/png;base64,${base64}`;
+}
+
+function plantillaCertificadoHTML({
+  estudiante,
+  curso,
+  fecha_emision
+}){
+  const logoDataUri = loadLogoDataUri();
+
+    const logoHtml = logoDataUri
+        ? `<img class="logo" src="${logoDataUri}" alt="SixSeven Academy" />`
+        : `<div class="logo-fallback">SIXSEVEN ACADEMY</div>`;
+
+    const nombreEstudiante = escapeHtml(estudiante?.nombre);
+    const nombreCurso = escapeHtml(curso?.nombre);
+    const fecha = escapeHtml(fecha_emision);
+    
     return `
     <!DOCTYPE html>
 <html lang="es">
@@ -171,15 +215,7 @@ function plantillaCertificadoHTML(){
       <div class="header">
         <!-- Logo SVG inline (graduation cap + head silhouette) -->
         <svg class="logo-icon" viewBox="0 0 54 54" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <!-- head silhouette -->
-          <ellipse cx="27" cy="30" rx="14" ry="16" fill="#3ab8b8" opacity="0.25"/>
-          <path d="M18 38 Q20 50 27 52 Q34 50 36 38" fill="#3ab8b8" opacity="0.18"/>
-          <!-- graduation cap -->
-          <polygon points="27,8 44,16 27,24 10,16" fill="#f5c518"/>
-          <rect x="38" y="16" width="3" height="10" rx="1.5" fill="#f5c518"/>
-          <circle cx="39.5" cy="27" r="2.5" fill="#f5c518"/>
-          <!-- tassel lines -->
-          <line x1="44" y1="16" x2="44" y2="22" stroke="#1a7a8a" stroke-width="2"/>
+        ${logoHtml}  
         </svg>
         <span class="logo-text">SixSeven Academy</span>
       </div>
@@ -189,11 +225,11 @@ function plantillaCertificadoHTML(){
 
       <!-- Body -->
       <p class="awarded-label">Otorgado a:</p>
-      <p class="student-name">NOMBRE DEL ESTUDIANTE</p>
+      <p class="student-name">${nombreEstudiante}</p>
 
       <div class="description">
-        Por completar satisfactoriamente el curso de <strong>[Nombre de la materia]</strong><br>
-        en el período <strong>[Duración materia]</strong>
+        Por completar satisfactoriamente el curso de <strong>${nombreCurso}</strong><br>
+        a la fecha <strong>${fecha}</strong>
       </div>
 
       <!-- Signature -->
@@ -215,3 +251,48 @@ function plantillaCertificadoHTML(){
 </html>
 `
 }
+
+async function generarCertificadoPDFBuffer({
+    estudiante,
+    curso,
+    fecha_emision
+}) {
+
+    const browser = await puppeteer.launch({
+        headless: "new",
+        args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    });
+
+    try {
+
+        const page = await browser.newPage();
+
+        const html = plantillaCertificadoHTML({
+            estudiante,
+            curso,
+            fecha_emision
+        });
+
+        await page.setContent(html, {
+            waitUntil: "networkidle0",
+        });
+
+        const pdfBuffer = await page.pdf({
+            format: "A4",
+            printBackground: true,
+            margin: {
+                top: "10mm",
+                right: "10mm",
+                bottom: "10mm",
+                left: "10mm",
+            },
+        });
+
+        return pdfBuffer;
+
+    } finally {
+        await browser.close();
+    }
+}
+
+module.exports = { generarCertificadoPDFBuffer };
